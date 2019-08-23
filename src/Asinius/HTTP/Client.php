@@ -109,7 +109,7 @@ class Client
         curl_setopt($this->_curl, CURLOPT_USERAGENT, $response_values['user_agent']);
         $response_values['body'] = curl_exec($this->_curl);
         if ( $response_values['body'] === false ) {
-            throw new RuntimeException('Unhandled error when sending http(s) request');
+            throw new \RuntimeException('Unhandled error when sending http(s) request');
         }
         $response_values['response_code'] = curl_getinfo($this->_curl, CURLINFO_RESPONSE_CODE);
         $response_values['content_type']  = curl_getinfo($this->_curl, CURLINFO_CONTENT_TYPE);
@@ -126,7 +126,7 @@ class Client
         if ( preg_match('|^application/json(; .*)?$|', $response_values['content_type']) === 1 ) {
             //  Parse a returned JSON string.
             if ( empty($response_values['body']) || is_null($json_body = json_decode($response_values['body'], true)) ) {
-                throw new RuntimeException('Server returned an invalid JSON response');
+                throw new \RuntimeException('Server returned an invalid JSON response');
             }
             //  Successfully parsed JSON response, so rewrite the body.
             $response_values['body'] = $json_body;
@@ -183,7 +183,7 @@ class Client
     public function ssl_mode ($mode)
     {
         if ( ! in_array($mode, [SSL_ON, SSL_OFF], true) ) {
-            throw new RuntimeException('Not a supported SSL mode: ' . gettype($mode), EINVAL);
+            throw new \RuntimeException('Not a supported SSL mode: ' . gettype($mode), EINVAL);
         }
         if ( $mode !== $this->_ssl_mode ) {
             switch ($mode) {
@@ -215,7 +215,7 @@ class Client
     public function user_agent ($user_agent)
     {
         if ( ! is_string($user_agent) && $user_agent !== RANDOM_USERAGENT ) {
-            throw new RuntimeException('Not a supported user agent type: ' . gettype($user_agent), EINVAL);
+            throw new \RuntimeException('Not a supported user agent type: ' . gettype($user_agent), EINVAL);
         }
         $this->_user_agent = $user_agent;
     }
@@ -236,7 +236,7 @@ class Client
     public function get ($url, $headers = [])
     {
         if ( is_null($this->_curl) ) {
-            throw new RuntimeException('The internal curl object has disappeared');
+            throw new \RuntimeException('The internal curl object has disappeared');
         }
         curl_setopt($this->_curl, CURLOPT_HTTPGET, true);
         curl_setopt($this->_curl, CURLOPT_URL, $url);
