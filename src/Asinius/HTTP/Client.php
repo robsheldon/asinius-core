@@ -108,6 +108,9 @@ class Client
         }
         curl_setopt($this->_curl, CURLOPT_USERAGENT, $response_values['user_agent']);
         $response_values['body'] = curl_exec($this->_curl);
+        if ( curl_errno($this->_curl) !== 0 ) {
+            throw new \RuntimeException(curl_error($this->_curl), curl_errno($this->_curl));
+        }
         if ( $response_values['body'] === false ) {
             throw new \RuntimeException('Unhandled error when sending http(s) request');
         }
