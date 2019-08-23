@@ -240,7 +240,7 @@ class Client
         }
         curl_setopt($this->_curl, CURLOPT_HTTPGET, true);
         curl_setopt($this->_curl, CURLOPT_URL, $url);
-        return new http_response($this->_exec());
+        return new \Asinius\HTTP\Response($this->_exec());
     }
 
 }
