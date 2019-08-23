@@ -1,0 +1,14 @@
+{
+    "name": "asinius/asinius",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "~5.3 | ^7.0",
+        "lib-curl": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "Asinius\\": "src/"
+        }
+    }
+}
