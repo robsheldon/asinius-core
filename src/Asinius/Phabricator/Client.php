@@ -201,11 +201,9 @@ class Client
                 //  There are no commits for these tasks.
                 return [];
             }
-            foreach ($matches as $match) {
-                $commit_phids[] = $match['destinationPHID'];
-            }
+            $commit_phids = array_values(array_column($matches, 'destinationPHID'));
             if ( ! array_key_exists('constraints', $parameters) ) {
-                $parameters['constraints'] = array();
+                $parameters['constraints'] = [];
             }
             if ( empty($parameters['constraints']['phids']) || ! is_array($parameters['constraints']['phids']) ) {
                 $parameters['constraints']['phids'] = $commit_phids;

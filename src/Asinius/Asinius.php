@@ -72,7 +72,7 @@ class Asinius
                     $child_class = get_class($caller['object']);
                     continue;
                 }
-                for ($classes as $class) {
+                foreach ($classes as $class) {
                     if ( is_a($caller['object'], $class) ) {
                         return;
                     }
