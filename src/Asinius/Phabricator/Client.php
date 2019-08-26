@@ -147,6 +147,16 @@ class Client
     }
 
 
+    private function _generate ($class, $results)
+    {
+        $objects = [];
+        foreach ($results as $result) {
+            $objects = new $class($result);
+        }
+        return $objects;
+    }
+
+
     public function tasks ($parameters = ['queryKey' => 'all'])
     {
         if ( ! array_key_exists('attachments', $parameters) ) {
@@ -171,12 +181,7 @@ class Client
 
     public function projects ($parameters = ['queryKey' => 'all'])
     {
-        $projects = [];
-        $results = $this->_fetch_all('POST', 'project.search', $parameters);
-        foreach ($results as $result) {
-            $projects[] = new Project($result);
-        }
-        return $projects;
+        return $this->_generate('Project', $this->_fetch_all('POST', 'project.search', $parameters));
     }
 
 
