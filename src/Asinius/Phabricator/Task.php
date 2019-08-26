@@ -41,37 +41,8 @@ namespace Asinius\Phabricator;
 *                                                                              *
 *******************************************************************************/
 
-class Task
+class Task extends PhObject
 {
-
-    private $_properties    = [];
-    private $_client        = null;
-
-
-    /**
-     * Create a new Phabricator Task object from a set of properties.
-     *
-     * @author  Rob Sheldon <rob@robsheldon.com>
-     * 
-     * @param   array       $properties
-     * @param   Client      $client
-     *
-     * @throws  RuntimeException
-     *
-     * @internal
-     *
-     * @return  \Asinius\Phabricator\Task
-     */
-    public function __construct ($properties, $client)
-    {
-        \Asinius\Asinius::enforce_created_by('\Asinius\Phabricator\Client');
-        $this->_client = $client;
-        $this->_properties = $properties['fields'];
-        unset($properties['fields']);
-        $this->_properties['attachments'] = $properties['attachments'];
-        unset($properties['attachments']);
-        $this->_properties = array_merge($this->_properties, $properties);
-    }
 
 
     /**
@@ -87,14 +58,11 @@ class Task
      */
     public function __get ($property)
     {
-        if ( array_key_exists($property, $this->_properties) ) {
-            return $this->_properties[$property];
-        }
         if ( $property == 'commits' ) {
             $this->_properties['commits'] = $this->_client->commits(['task_phids' => $this->_properties['phid']]);
             return $this->_properties['commits'];
         }
-        throw new \RuntimeException("Undefined property: $property");
+        return parent::__get($property);
     }
 
 
@@ -111,5 +79,6 @@ class Task
     {
         return $this->_client->commits(['task_phids' => $this->_properties['phid']]);
     }
+
 
 }

@@ -2,9 +2,9 @@
 
 /*******************************************************************************
 *                                                                              *
-*   Asinius\Phabricator\Project                                                *
+*   Asinius\Phabricator\PhObject                                               *
 *                                                                              *
-*   Class for working with projects through the Phabricator API.               *
+*   Base class for Phabricator-related objects.                                *
 *                                                                              *
 *   LICENSE                                                                    *
 *                                                                              *
@@ -37,26 +37,60 @@ namespace Asinius\Phabricator;
 
 /*******************************************************************************
 *                                                                              *
-*   \Asinius\Phabricator\Project                                               *
+*   \Asinius\Phabricator\PhObject                                              *
 *                                                                              *
 *******************************************************************************/
 
-class Project extends PhObject
+class PhObject
 {
+
+    protected $_properties    = [];
+    protected $_client        = null;
 
 
     /**
-     * Return any tasks associated with this project.
+     * Create a new Phabricator object from a set of properties.
+     *
+     * @author  Rob Sheldon <rob@robsheldon.com>
+     * 
+     * @param   array       $properties
+     * @param   Client      $client
+     *
+     * @throws  RuntimeException
+     *
+     * @internal
+     *
+     * @return  \Asinius\Phabricator\PhObject
+     */
+    public function __construct ($properties, $client)
+    {
+        \Asinius\Asinius::enforce_created_by('\Asinius\Phabricator\Client');
+        $this->_client = $client;
+        $this->_properties = $properties['fields'];
+        unset($properties['fields']);
+        $this->_properties['attachments'] = $properties['attachments'];
+        unset($properties['attachments']);
+        $this->_properties = array_merge($this->_properties, $properties);
+    }
+
+
+    /**
+     * Return the value of a Phabricator Object property.
      *
      * @author  Rob Sheldon <rob@robsheldon.com>
      *
+     * @param   string      $property
+     *
      * @throws  RuntimeException
      * 
-     * @return  array
+     * @return  mixed
      */
-    public function tasks ($parameters)
+    public function __get ($property)
     {
-        return $this->_client->tasks(['task_phids' => $this->_properties['phid']]);
+        if ( array_key_exists($property, $this->_properties) ) {
+            return $this->_properties[$property];
+        }
+        throw new \RuntimeException("Undefined property: $property");
     }
 
 

@@ -41,56 +41,7 @@ namespace Asinius\Phabricator;
 *                                                                              *
 *******************************************************************************/
 
-class Commit
+class Commit extends PhObject
 {
-
-    private $_properties    = [];
-    private $_client        = null;
-
-
-    /**
-     * Create a new Phabricator Commit object from a set of properties.
-     *
-     * @author  Rob Sheldon <rob@robsheldon.com>
-     * 
-     * @param   array       $properties
-     * @param   Client      $client
-     *
-     * @throws  RuntimeException
-     *
-     * @internal
-     *
-     * @return  \Asinius\Phabricator\Commit
-     */
-    public function __construct ($properties, $client)
-    {
-        \Asinius\Asinius::enforce_created_by('\Asinius\Phabricator\Client');
-        $this->_client = $client;
-        $this->_properties = $properties['fields'];
-        unset($properties['fields']);
-        $this->_properties['attachments'] = $properties['attachments'];
-        unset($properties['attachments']);
-        $this->_properties = array_merge($this->_properties, $properties);
-    }
-
-
-    /**
-     * Return the value of a Phabricator Commit property.
-     *
-     * @author  Rob Sheldon <rob@robsheldon.com>
-     *
-     * @param   string      $property
-     *
-     * @throws  RuntimeException
-     * 
-     * @return  mixed
-     */
-    public function __get ($property)
-    {
-        if ( array_key_exists($property, $this->_properties) ) {
-            return $this->_properties[$property];
-        }
-        throw new \RuntimeException("Undefined property: $property");
-    }
 
 }

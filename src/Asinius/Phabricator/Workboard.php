@@ -2,7 +2,7 @@
 
 /*******************************************************************************
 *                                                                              *
-*   Asinius\Phabricator\Project                                                *
+*   Asinius\Phabricator\Workboard                                              *
 *                                                                              *
 *   Class for working with projects through the Phabricator API.               *
 *                                                                              *
@@ -37,27 +37,11 @@ namespace Asinius\Phabricator;
 
 /*******************************************************************************
 *                                                                              *
-*   \Asinius\Phabricator\Project                                               *
+*   \Asinius\Phabricator\Workboard                                             *
 *                                                                              *
 *******************************************************************************/
 
-class Project extends PhObject
+class Workboard extends PhObject
 {
-
-
-    /**
-     * Return any tasks associated with this project.
-     *
-     * @author  Rob Sheldon <rob@robsheldon.com>
-     *
-     * @throws  RuntimeException
-     * 
-     * @return  array
-     */
-    public function tasks ($parameters)
-    {
-        return $this->_client->tasks(['task_phids' => $this->_properties['phid']]);
-    }
-
 
 }
