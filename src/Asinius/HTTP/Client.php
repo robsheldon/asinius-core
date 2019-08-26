@@ -132,14 +132,6 @@ class Client
             list($label, $value) = explode(': ', $header, 2);
             $response_values['response_headers'][$label] = $value;
         }
-        if ( preg_match('|^application/json(; .*)?$|', $response_values['content_type']) === 1 ) {
-            //  Parse a returned JSON string.
-            if ( empty($response_values['body']) || is_null($json_body = json_decode($response_values['body'], true)) ) {
-                throw new \RuntimeException('Server returned an invalid JSON response');
-            }
-            //  Successfully parsed JSON response, so rewrite the body.
-            $response_values['body'] = $json_body;
-        }
         return $response_values;
     }
 

@@ -102,7 +102,7 @@ class Response
             case 'application/json':
                 //  Parse a returned JSON string.
                 if ( empty($this->_raw['body']) || is_null($json_body = json_decode($this->_raw['body'], true)) ) {
-                    throw new \RuntimeException('Response was not valid JSON');
+                    throw new \RuntimeException('Server returned an invalid JSON response');
                 }
                 $this->_properties['body'] = $json_body;
                 break;
