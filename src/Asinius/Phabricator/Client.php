@@ -89,21 +89,21 @@ class Client
                 $response = $this->_http->post($this->_url . $path, $parameters);
                 break;
             default:
-                throw new RuntimeException("Unsupported API request method: $method", EINVAL);
+                throw new \RuntimeException("Unsupported API request method: $method", EINVAL);
                 break;
         }
         switch ($response->code) {
             case 401:
                 //  Unauthorized.
-                throw new RuntimeException(_ERR_PHABRICATOR_NOAUTH_);
+                throw new \RuntimeException(_ERR_PHABRICATOR_NOAUTH_);
         }
         if ( $response->content_type == 'application/json' ) {
             $response_json = $response->body;
             if ( ! empty($response_json['error_code']) ) {
                 if ( ! empty($response_json['error_info']) ) {
-                    throw new RuntimeException($response_json['error_info']);
+                    throw new \RuntimeException($response_json['error_info']);
                 }
-                throw new RuntimeException(_ERR_PHABRICATOR_GENERIC_);
+                throw new \RuntimeException(_ERR_PHABRICATOR_GENERIC_);
             }
             return $response_json['result'];
         }
@@ -121,7 +121,7 @@ class Client
         while ( true ) {
             $response = $this->_call_api($api_method, $api_path, $api_parameters);
             if ( is_string($response) ) {
-                throw new RuntimeException("Unexpected API response: $response");
+                throw new \RuntimeException("Unexpected API response: $response");
             }
             if ( array_key_exists('data', $response) ) {
                 $results = array_merge($results, $response['data']);
