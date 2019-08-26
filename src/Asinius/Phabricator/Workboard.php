@@ -44,4 +44,25 @@ namespace Asinius\Phabricator;
 class Workboard extends PhObject
 {
 
+
+    /**
+     * Create a new Workboard object from an array of columns.
+     *
+     * @author  Rob Sheldon <rob@robsheldon.com>
+     * 
+     * @param   array       $properties
+     * @param   Client      $client
+     *
+     * @return  \Asinius\Phabricator\Workboard
+     */
+    public function __construct ($properties, $client)
+    {
+        \Asinius\Asinius::enforce_created_by('\Asinius\Phabricator\Client');
+        $this->_client = $client;
+        $this->_properties = [
+            'columns'   => $properties,
+        ];
+    }
+
+
 }
