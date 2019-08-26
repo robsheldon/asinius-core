@@ -173,9 +173,9 @@ class Client
      */
     private function _make_constraint ($filter_key, $constraint_key, &$parameters)
     {
-        if ( array_key_exists($key, $parameters) ) {
+        if ( array_key_exists($filter_key, $parameters) ) {
             $phids = [];
-            $items = is_array($parameters[$key]) ? $parameters[$key] : [$parameters[$key]];
+            $items = is_array($parameters[$filter_key]) ? $parameters[$filter_key] : [$parameters[$filter_key]];
             foreach ($items as $item) {
                 if ( is_string($item) ) {
                     $phids[] = $item;
