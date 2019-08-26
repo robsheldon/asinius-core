@@ -151,7 +151,7 @@ class Client
     {
         $objects = [];
         foreach ($results as $result) {
-            $objects = new $class($result, $this);
+            $objects[] = new $class($result, $this);
         }
         return $objects;
     }
