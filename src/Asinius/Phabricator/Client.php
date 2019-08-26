@@ -162,7 +162,7 @@ class Client
         if ( ! array_key_exists('attachments', $parameters) ) {
             $parameters['attachments'] = array('projects' => true);
         }
-        return $this->_fetch_all('POST', 'maniphest.search', $parameters);
+        return $this->_generate('Task', $this->_fetch_all('POST', 'maniphest.search', $parameters));
     }
 
 
