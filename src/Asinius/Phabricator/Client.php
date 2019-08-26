@@ -160,9 +160,9 @@ class Client
     public function tasks ($parameters = ['queryKey' => 'all'])
     {
         if ( ! array_key_exists('attachments', $parameters) ) {
-            $parameters['attachments'] = array('projects' => true);
+            $parameters['attachments'] = ['projects' => true];
         }
-        return $this->_generate('Task', $this->_fetch_all('POST', 'maniphest.search', $parameters));
+        return $this->_generate('\Asinius\Phabricator\Task', $this->_fetch_all('POST', 'maniphest.search', $parameters));
     }
 
 
@@ -181,7 +181,7 @@ class Client
 
     public function projects ($parameters = ['queryKey' => 'all'])
     {
-        return $this->_generate('Project', $this->_fetch_all('POST', 'project.search', $parameters));
+        return $this->_generate('\Asinius\Phabricator\Project', $this->_fetch_all('POST', 'project.search', $parameters));
     }
 
 
@@ -212,7 +212,7 @@ class Client
                 $parameters['constraints']['phids'] = array_unique(array_merge($parameters['constraints']['phids'], $commit_phids));
             }
         }
-        return $this->_generate('Commit', $this->_fetch_all('POST', 'diffusion.commit.search', $parameters));
+        return $this->_generate('\Asinius\Phabricator\Commit', $this->_fetch_all('POST', 'diffusion.commit.search', $parameters));
     }
 
 

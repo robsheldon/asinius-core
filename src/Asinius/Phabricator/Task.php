@@ -97,4 +97,19 @@ class Task
         throw new \RuntimeException("Undefined property: $property");
     }
 
+
+    /**
+     * Return any commits associated with this task.
+     *
+     * @author  Rob Sheldon <rob@robsheldon.com>
+     *
+     * @throws  RuntimeException
+     * 
+     * @return  array
+     */
+    public function commits ()
+    {
+        return $this->_client->commits(['task_phids' => $this->_properties['phid']]);
+    }
+
 }
