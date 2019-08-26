@@ -32,7 +32,7 @@
 *                                                                              *
 *******************************************************************************/
 
-namespace \Asinius\Phabricator\Workboard;
+namespace Asinius\Phabricator\Workboard;
 
 
 /*******************************************************************************
@@ -46,7 +46,7 @@ class Column extends \Asinius\Phabricator\PhObject
 
 
     /**
-     * Return any tasks associated with this task.
+     * Return any tasks in this column.
      *
      * @author  Rob Sheldon <rob@robsheldon.com>
      *

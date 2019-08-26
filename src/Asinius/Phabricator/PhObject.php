@@ -66,10 +66,14 @@ class PhObject
     {
         \Asinius\Asinius::enforce_created_by('\Asinius\Phabricator\Client');
         $this->_client = $client;
-        $this->_properties = $properties['fields'];
-        unset($properties['fields']);
-        $this->_properties['attachments'] = $properties['attachments'];
-        unset($properties['attachments']);
+        if ( array_key_exists('fields', $properties) ) {
+            $this->_properties = $properties['fields'];
+            unset($properties['fields']);
+        }
+        if ( array_key_exists('attachments', $properties) ) {
+            $this->_properties['attachments'] = $properties['attachments'];
+            unset($properties['attachments']);
+        }
         $this->_properties = array_merge($this->_properties, $properties);
     }
 
