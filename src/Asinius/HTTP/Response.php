@@ -102,7 +102,7 @@ class Response
             case 'application/json':
                 //  Parse a returned JSON string.
                 if ( empty($this->_raw['body']) || is_null($json_body = json_decode($this->_raw['body'], true)) ) {
-                    throw new RuntimeException('Response was not valid JSON');
+                    throw new \RuntimeException('Response was not valid JSON');
                 }
                 $this->_properties['body'] = $json_body;
                 break;
@@ -143,7 +143,7 @@ class Response
             }
         }
         if ( ! $safely_created ) {
-            throw new RuntimeException(get_called_class() . ' must be instantiated by the \Asinius\HTTP\Client class');
+            throw new \RuntimeException(get_called_class() . ' must be instantiated by the \Asinius\HTTP\Client class');
         }
         $this->_raw = $response_values;
         $this->_properties['code'] = $response_values['response_code'];
@@ -179,12 +179,14 @@ class Response
             case 'raw':
                 return $this->_raw;
             default:
+                if ( array_key_exists($key, $this->_properties) ) {
+                    return $this->_properties[$key];
+                }
                 if ( array_key_exists($key, $this->_raw) ) {
                     return $this->_raw[$key];
                 }
-                throw new RuntimeException("Undefined property: $key");
+                throw new \RuntimeException("Undefined property: $key");
         }
     }
-
 
 }
