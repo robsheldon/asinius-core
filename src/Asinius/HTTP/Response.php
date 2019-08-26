@@ -130,21 +130,7 @@ class Response
      */
     public function __construct ($response_values)
     {
-        //  Must be instantiated by an \Asinius\HTTP\Client object.
-        $safely_created = false;
-        $stack_trace = debug_backtrace();
-        array_shift($stack_trace);
-        foreach ($stack_trace as $caller) {
-            if ( (array_key_exists('object', $caller) && is_a($caller['object'], '\Asinius\HTTP\Client'))
-                || (array_key_exists('class', $caller) && array_key_exists('type', $caller) && $caller['type'] == '::' && $caller['class'] == '\Asinius\HTTP\Client')
-             ) {
-                $safely_created = true;
-                break;
-            }
-        }
-        if ( ! $safely_created ) {
-            throw new \RuntimeException(get_called_class() . ' must be instantiated by the \Asinius\HTTP\Client class');
-        }
+        \Asinius\Object::enforce_created_by('\Asinius\HTTP\Client');
         $this->_raw = $response_values;
         $this->_properties['code'] = $response_values['response_code'];
     }
@@ -154,18 +140,16 @@ class Response
      * Return the value of a response property.
      *
      * @author  Rob Sheldon <rob@robsheldon.com>
-     * @param   string      $key
+     *
+     * @param   string      $property
      *
      * @throws  RuntimeException
      * 
      * @return  mixed
      */
-    public function __get ($key)
+    public function __get ($property)
     {
-        //  This is done this way to provide immutable values for a broad range
-        //  of response types along with lazy-loading some values that require
-        //  additional processing.
-        switch ($key) {
+        switch ($property) {
             case 'body':
                 if ( ! array_key_exists('body', $this->_properties) ) {
                     $this->_parse_body();
@@ -179,13 +163,13 @@ class Response
             case 'raw':
                 return $this->_raw;
             default:
-                if ( array_key_exists($key, $this->_properties) ) {
-                    return $this->_properties[$key];
+                if ( array_key_exists($property, $this->_properties) ) {
+                    return $this->_properties[$property];
                 }
-                if ( array_key_exists($key, $this->_raw) ) {
-                    return $this->_raw[$key];
+                if ( array_key_exists($property, $this->_raw) ) {
+                    return $this->_raw[$property];
                 }
-                throw new \RuntimeException("Undefined property: $key");
+                throw new \RuntimeException("Undefined property: $property");
         }
     }
 
