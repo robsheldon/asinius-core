@@ -73,6 +73,7 @@ const COMMON_USERAGENTS = [
 //  Supported SSL modes: "on" enables full host checking & etc., "off" disables it.
 const SSL_ON           = 1;
 const SSL_OFF          = 0;
+const SSL_DISABLE      = -1;
 
 
 /*******************************************************************************
@@ -108,8 +109,13 @@ class Client
         }
         curl_setopt($this->_curl, CURLOPT_USERAGENT, $response_values['user_agent']);
         $response_values['body'] = curl_exec($this->_curl);
-        if ( curl_errno($this->_curl) !== 0 ) {
-            throw new \RuntimeException(curl_error($this->_curl), curl_errno($this->_curl));
+        if ( ($error_number = curl_errno($this->_curl)) !== 0 ) {
+            if ( $error_number == 6 ) {
+                //  Failed to resolve host. Is there a network connection?
+                //  TODO: Verify the network connection status here.
+                ;
+            }
+            throw new \RuntimeException(curl_error($this->_curl), $error_number);
         }
         if ( $response_values['body'] === false ) {
             throw new \RuntimeException('Unhandled error when sending http(s) request');
@@ -173,7 +179,10 @@ class Client
 
 
     /**
-     * Set the SSL mode for the current client.
+     * Set the SSL mode for the current client. SSL_ON will enable SSL verification
+     * for all subsequent calls through this client; SSL_OFF will turn off SSL
+     * verification by default except for URLs beginning in "https://"; SSL_DSIABLE
+     * will turn off SSL verification under all circumstances.
      *
      * @author  Rob Sheldon <rob@robsheldon.com>
      *
@@ -191,11 +200,12 @@ class Client
         if ( $mode !== $this->_ssl_mode ) {
             switch ($mode) {
                 case SSL_OFF:
+                case SSL_DISABLE:
                     curl_setopt($this->_curl, CURLOPT_SSL_VERIFYHOST, false); 
                     curl_setopt($this->_curl, CURLOPT_SSL_VERIFYPEER, false);
                     break;
                 case SSL_ON:
-                    curl_setopt($this->_curl, CURLOPT_SSL_VERIFYHOST, true); 
+                    curl_setopt($this->_curl, CURLOPT_SSL_VERIFYHOST, 2); 
                     curl_setopt($this->_curl, CURLOPT_SSL_VERIFYPEER, true);
                     break;
             }
@@ -230,20 +240,67 @@ class Client
      * @author  Rob Sheldon <rob@robsheldon.com>
      *
      * @param   string      $url
+     * @param   mixed       $parameters
      * @param   array       $headers
      *
      * @throws  RuntimeException
      * 
      * @return  mixed
      */
-    public function get ($url, $headers = [])
+    public function get ($url, $parameters = false, $headers = [])
     {
         if ( is_null($this->_curl) ) {
             throw new \RuntimeException('The internal curl object has disappeared');
         }
+        $ssl_mode = $this->_ssl_mode;
+        if ( stripos($url, 'https://') === 0 && $ssl_mode == SSL_OFF ) {
+            $this->ssl_mode(SSL_ON);
+        }
         curl_setopt($this->_curl, CURLOPT_HTTPGET, true);
         curl_setopt($this->_curl, CURLOPT_URL, $url);
-        return new \Asinius\HTTP\Response($this->_exec());
+        $response = new \Asinius\HTTP\Response($this->_exec());
+        if ( $ssl_mode != $this->_ssl_mode ) {
+            $this->ssl_mode($ssl_mode);
+        }
+        return $response;
+    }
+
+
+    /**
+     * Send an http POST request and return the body of the response, if any.
+     *
+     * @author  Rob Sheldon <rob@robsheldon.com>
+     *
+     * @param   string      $url
+     * @param   mixed       $parameters
+     * @param   array       $headers
+     *
+     * @throws  RuntimeException
+     * 
+     * @return  mixed
+     */
+    public function post ($url, $parameters = false, $headers = [])
+    {
+        if ( is_null($this->_curl) ) {
+            throw new \RuntimeException('The internal curl object has disappeared');
+        }
+        $ssl_mode = $this->_ssl_mode;
+        if ( stripos($url, 'https://') === 0 && $ssl_mode == SSL_OFF ) {
+            $this->ssl_mode(SSL_ON);
+        }
+        curl_setopt($this->_curl, CURLOPT_POST, true);
+        curl_setopt($this->_curl, CURLOPT_URL, $url);
+        if ( $parameters !== false ) {
+            if ( is_array($parameters) ) {
+                $parameters = http_build_query($parameters);
+            }
+            curl_setopt($this->_curl, CURLOPT_POSTFIELDS, $parameters);
+        }
+        $response = new \Asinius\HTTP\Response($this->_exec());
+        if ( $ssl_mode != $this->_ssl_mode ) {
+            $this->ssl_mode($ssl_mode);
+        }
+        return $response;
     }
 
 }

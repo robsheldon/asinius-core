@@ -49,15 +49,71 @@ namespace Asinius\HTTP;
 
 /*******************************************************************************
 *                                                                              *
-*   \Asinius\HTTP\Client                                                       *
+*   \Asinius\HTTP\Response                                                     *
 *                                                                              *
 *******************************************************************************/
 
 class Response
 {
 
-    private $_raw       = [];
-    private $_cached    = [];
+    private $_raw           = [];
+    private $_properties    = [];
+
+
+    /**
+     * Parse the content-type in the response and store a sanitized copy of it.
+     *
+     * @author  Rob Sheldon <rob@robsheldon.com>
+     *
+     * @return  void
+     */
+    private function _parse_content_type ()
+    {
+        $content_type_patterns = [
+            '|^application/json(; .*)?$|'   => 'application/json',
+            '|^text/html(; .*)?$|'          => 'text/html',
+            '|^text/plain(; .*)?$|'         => 'text/plain',
+            '|^.*$|'                        => $this->_raw['content_type'],
+        ];
+        foreach ($content_type_patterns as $pattern => $content_type) {
+            if ( preg_match($pattern, $this->_raw['content_type']) === 1 ) {
+                $this->_properties['content_type'] = $content_type;
+                break;
+            }
+        }
+    }
+
+
+    /**
+     * Parse the response body: return plain text or unaltered html and decode
+     * JSON.
+     *
+     * @author  Rob Sheldon <rob@robsheldon.com>
+     *
+     * @throws  RuntimeException
+     *
+     * @internal
+     *
+     * @return  void
+     */
+    private function _parse_body ()
+    {
+        switch ($this->content_type) {
+            case 'application/json':
+                //  Parse a returned JSON string.
+                if ( empty($this->_raw['body']) || is_null($json_body = json_decode($this->_raw['body'], true)) ) {
+                    throw new RuntimeException('Response was not valid JSON');
+                }
+                $this->_properties['body'] = $json_body;
+                break;
+            case 'text/html':
+            case 'text/plain':
+            default:
+                $this->_properties['body'] = $this->_raw['body'];
+                break;
+        }
+    }
+
 
     /**
      * Create a new http_response object from a set of properties. Intended to
@@ -90,6 +146,7 @@ class Response
             throw new RuntimeException(get_called_class() . ' must be instantiated by the \Asinius\HTTP\Client class');
         }
         $this->_raw = $response_values;
+        $this->_properties['code'] = $response_values['response_code'];
     }
 
 
@@ -105,73 +162,29 @@ class Response
      */
     public function __get ($key)
     {
+        //  This is done this way to provide immutable values for a broad range
+        //  of response types along with lazy-loading some values that require
+        //  additional processing.
         switch ($key) {
             case 'body':
-                return $this->body();
+                if ( ! array_key_exists('body', $this->_properties) ) {
+                    $this->_parse_body();
+                }
+                return $this->_properties['body'];
             case 'content_type':
-                return $this->content_type();
+                if ( ! array_key_exists('content_type', $this->_properties) ) {
+                    $this->_parse_content_type();
+                }
+                return $this->_properties['content_type'];
             case 'raw':
                 return $this->_raw;
             default:
+                if ( array_key_exists($key, $this->_raw) ) {
+                    return $this->_raw[$key];
+                }
                 throw new RuntimeException("Undefined property: $key");
         }
     }
 
-
-    /**
-     * Parse the content-type in the response and return a sanitized copy of it.
-     *
-     * @author  Rob Sheldon <rob@robsheldon.com>
-     *
-     * @return  mixed
-     */
-    public function content_type ()
-    {
-        if ( ! array_key_exists('content_type', $this->_cached) ) {
-            $this->_cached['content_type'] = null;
-            $content_type_patterns = [
-                '|^application/json(; .*)?$|'   => 'application/json',
-                '|^text/html(; .*)?$|'          => 'text/html',
-                '|^text/plain(; .*)?$|'         => 'text/plain',
-            ];
-            foreach ($content_type_patterns as $pattern => $content_type) {
-                if ( preg_match($pattern, $this->_raw['content_type']) === 1 ) {
-                    $this->_cached['content_type'] = $content_type;
-                    break;
-                }
-            }
-        }
-        return $this->_cached['content_type'];
-    }
-
-
-    /**
-     * Return the response body. If it's JSON, parse it and return the object.
-     *
-     * @author  Rob Sheldon <rob@robsheldon.com>
-     *
-     * @return  mixed
-     */
-    public function body ()
-    {
-        if ( ! array_key_exists('body', $this->_cached) ) {
-            $this->_cached['body'] = null;
-            switch ($this->content_type()) {
-                case 'application/json':
-                    //  Parse a returned JSON string.
-                    if ( empty($this->_raw['body']) || is_null($json_body = json_decode($this->_raw['body'], true)) ) {
-                        throw new RuntimeException('Response was not valid JSON');
-                    }
-                    $this->_cached['body'] = $json_body;
-                    break;
-                case 'text/html':
-                case 'text/plain':
-                default:
-                    $this->_cached['body'] = $this->_raw['body'];
-                    break;
-            }
-        }
-        return $this->_cached['body'];
-    }
 
 }
