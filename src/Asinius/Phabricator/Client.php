@@ -171,7 +171,12 @@ class Client
 
     public function projects ($parameters = ['queryKey' => 'all'])
     {
-        return $this->_fetch_all('POST', 'project.search', $parameters);
+        $projects = [];
+        $results = $this->_fetch_all('POST', 'project.search', $parameters);
+        foreach ($results as $result) {
+            $projects[] = new Project($result);
+        }
+        return $projects;
     }
 
 
