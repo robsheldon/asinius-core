@@ -32,7 +32,7 @@
 *                                                                              *
 *******************************************************************************/
 
-namespace Asinius\Phabricator;
+namespace \Asinius\Phabricator\Workboard;
 
 
 /*******************************************************************************
@@ -41,7 +41,7 @@ namespace Asinius\Phabricator;
 *                                                                              *
 *******************************************************************************/
 
-class \Asinius\Phabricator\Workboard\Column extends PhObject
+class Column extends \Asinius\Phabricator\PhObject
 {
 
 
@@ -50,8 +50,6 @@ class \Asinius\Phabricator\Workboard\Column extends PhObject
      *
      * @author  Rob Sheldon <rob@robsheldon.com>
      *
-     * @throws  RuntimeException
-     * 
      * @return  array
      */
     public function tasks ($parameters)
