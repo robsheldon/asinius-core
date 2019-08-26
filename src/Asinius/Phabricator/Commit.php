@@ -2,9 +2,9 @@
 
 /*******************************************************************************
 *                                                                              *
-*   Asinius\Phabricator\Task                                                   *
+*   Asinius\Phabricator\Commit                                                 *
 *                                                                              *
-*   Class for working with projects through the Phabricator API.               *
+*   Class for working with commits through the Phabricator API.                *
 *                                                                              *
 *   LICENSE                                                                    *
 *                                                                              *
@@ -37,11 +37,11 @@ namespace Asinius\Phabricator;
 
 /*******************************************************************************
 *                                                                              *
-*   \Asinius\Phabricator\Task                                                  *
+*   \Asinius\Phabricator\Commit                                                *
 *                                                                              *
 *******************************************************************************/
 
-class Task
+class Commit
 {
 
     private $_properties    = [];
@@ -49,7 +49,7 @@ class Task
 
 
     /**
-     * Create a new Phabricator Task object from a set of properties.
+     * Create a new Phabricator Commit object from a set of properties.
      *
      * @author  Rob Sheldon <rob@robsheldon.com>
      * 
@@ -60,7 +60,7 @@ class Task
      *
      * @internal
      *
-     * @return  \Asinius\Phabricator\Task
+     * @return  \Asinius\Phabricator\Commit
      */
     public function __construct ($properties, $client)
     {
@@ -75,7 +75,7 @@ class Task
 
 
     /**
-     * Return the value of a Phabricator Task property.
+     * Return the value of a Phabricator Commit property.
      *
      * @author  Rob Sheldon <rob@robsheldon.com>
      *
@@ -89,10 +89,6 @@ class Task
     {
         if ( array_key_exists($property, $this->_properties) ) {
             return $this->_properties[$property];
-        }
-        if ( $property == 'commits' ) {
-            $this->_properties['commits'] = $this->_client->commits(['task_phids' => $this->_properties['phid']]);
-            return $this->_properties['commits'];
         }
         throw new \RuntimeException("Undefined property: $property");
     }

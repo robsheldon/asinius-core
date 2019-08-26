@@ -151,7 +151,7 @@ class Client
     {
         $objects = [];
         foreach ($results as $result) {
-            $objects = new $class($result);
+            $objects = new $class($result, $this);
         }
         return $objects;
     }
@@ -214,7 +214,7 @@ class Client
                 $parameters['constraints']['phids'] = array_unique(array_merge($parameters['constraints']['phids'], $commit_phids));
             }
         }
-        return $this->_fetch_all('POST', 'diffusion.commit.search', $parameters);
+        return $this->_generate('Commit', $this->_fetch_all('POST', 'diffusion.commit.search', $parameters));
     }
 
 

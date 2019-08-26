@@ -45,6 +45,7 @@ class Project
 {
 
     private $_properties    = [];
+    private $_client        = null;
 
 
     /**
@@ -53,6 +54,7 @@ class Project
      * @author  Rob Sheldon <rob@robsheldon.com>
      * 
      * @param   array       $properties
+     * @param   Client      $client
      *
      * @throws  RuntimeException
      *
@@ -60,9 +62,10 @@ class Project
      *
      * @return  \Asinius\Phabricator\Project
      */
-    public function __construct ($properties)
+    public function __construct ($properties, $client)
     {
         \Asinius\Asinius::enforce_created_by('\Asinius\Phabricator\Client');
+        $this->_client = $client;
         $this->_properties = $properties['fields'];
         unset($properties['fields']);
         $this->_properties['attachments'] = $properties['attachments'];
