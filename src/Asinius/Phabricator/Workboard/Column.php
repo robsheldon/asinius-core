@@ -2,9 +2,9 @@
 
 /*******************************************************************************
 *                                                                              *
-*   Asinius\Phabricator\Project                                                *
+*   Asinius\Phabricator\Workboard\Column                                       *
 *                                                                              *
-*   Class for working with projects through the Phabricator API.               *
+*   Class for working with columns in Phabricator workboards.                  *
 *                                                                              *
 *   LICENSE                                                                    *
 *                                                                              *
@@ -37,37 +37,26 @@ namespace Asinius\Phabricator;
 
 /*******************************************************************************
 *                                                                              *
-*   \Asinius\Phabricator\Project                                               *
+*   \Asinius\Phabricator\Workboard\Column                                      *
 *                                                                              *
 *******************************************************************************/
 
-class Project extends PhObject
+class Workboard\Column extends PhObject
 {
 
 
     /**
-     * Return any tasks associated with this project.
+     * Return any tasks associated with this task.
      *
      * @author  Rob Sheldon <rob@robsheldon.com>
      *
+     * @throws  RuntimeException
+     * 
      * @return  array
      */
     public function tasks ($parameters)
     {
-        return $this->_client->tasks(array_merge($parameters, ['task_phids' => $this->_properties['phid']]));
-    }
-
-
-    /**
-     * Return the workboard for this project.
-     *
-     * @author  Rob Sheldon <rob@robsheldon.com>
-     *
-     * @return  \Asinius\Phabricator\Workboard
-     */
-    public function workboard ()
-    {
-        return $this->_client->workboard_columns(['project' => $this]);
+        return $this->_client->tasks(array_merge($parameters, ['column' => $this]));
     }
 
 

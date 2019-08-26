@@ -157,6 +157,41 @@ class Client
     }
 
 
+    /**
+     * Convert an internal search "filter" into a Phabricator "constraint",
+     * updating the parameters being used in the search function in the process.
+     *
+     * @author  Rob Sheldon <rob@robsheldon.com>
+     *
+     * @param   string      $filter_key
+     * @param   string      $constraint_key
+     * @param   array       $parameters
+     *
+     * @internal
+     * 
+     * @return  void
+     */
+    private function _make_constraint ($filter_key, $constraint_key, &$parameters)
+    {
+        if ( array_key_exists($key, $parameters) ) {
+            $phids = [];
+            $items = is_array($parameters[$key]) ? $parameters[$key] : [$parameters[$key]];
+            foreach ($items as $item) {
+                if ( is_string($item) ) {
+                    $phids[] = $item;
+                }
+                else if ( is_a($item, '\Asinius\Phabricator\PhObject') ) {
+                    $phids[] = $item->phid;
+                }
+            }
+            if ( ! empty($phids) ) {
+                $parameters['constraints'][$constraint_key] = $phids;
+            }
+            unset($parameters[$filter_key]);
+        }
+    }
+
+
     public function tasks ($parameters = ['queryKey' => 'all'])
     {
         //  Fill in any missing keys.
@@ -173,23 +208,8 @@ class Client
             }
             unset($parameters['active']);
         }
-        //  Handle a "project" identifier.
-        if ( array_key_exists('project', $parameters) ) {
-            $project_phids = [];
-            $projects = is_array($parameters['project']) ? $parameters['project'] : [$parameters['project']];
-            foreach ($projects as $project) {
-                if ( is_string($project) ) {
-                    $project_phids[] = $project;
-                }
-                else if ( is_a($project, '\Asinius\Phabricator\Project') ) {
-                    $project_phids[] = $project->phid;
-                }
-            }
-            if ( ! empty($project_phids) ) {
-                $parameters['constraints']['projects'] = $project_phids;
-            }
-            unset($parameters['project']);
-        }
+        $this->_make_constraint('project', 'projects', $parameters);
+        $this->_make_constraint('column', 'columnPHIDs', $parameters);
         return $this->_generate('\Asinius\Phabricator\Task', $this->_fetch_all('POST', 'maniphest.search', $parameters));
     }
 
@@ -209,13 +229,16 @@ class Client
 
     public function projects ($parameters = ['queryKey' => 'all'])
     {
+        $this->_make_constraint('name', 'name', $parameters);
         return $this->_generate('\Asinius\Phabricator\Project', $this->_fetch_all('POST', 'project.search', $parameters));
     }
 
 
     public function workboard_columns ($parameters = ['queryKey' => 'all'])
     {
-        return $this->_fetch_all('POST', 'project.column.search', $parameters);
+        $this->_make_constraint('project', 'projects', $parameters);
+        $columns = $this->_generate('\Asinius\Phabricator\Workboard\Column', $this->_fetch_all('POST', 'project.column.search', $parameters));
+        return $this->_generate('\Asinius\Phabricator\Workboard', ['columns' => $columns]);
     }
 
 
