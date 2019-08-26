@@ -47,9 +47,22 @@ class Project
     private $_properties    = [];
 
 
+    /**
+     * Create a new Phabricator Project object from a set of properties.
+     *
+     * @author  Rob Sheldon <rob@robsheldon.com>
+     * 
+     * @param   array       $properties
+     *
+     * @throws  RuntimeException
+     *
+     * @internal
+     *
+     * @return  \Asinius\Phabricator\Project
+     */
     public function __construct ($properties)
     {
-        \Asinius\Object::enforce_created_by('\Asinius\Phabricator\Client');
+        \Asinius\Asinius::enforce_created_by('\Asinius\Phabricator\Client');
         $this->_properties = $properties['fields'];
         unset($properties['fields']);
         $this->_properties['attachments'] = $properties['attachments'];

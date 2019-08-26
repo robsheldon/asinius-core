@@ -2,7 +2,7 @@
 
 /*******************************************************************************
 *                                                                              *
-*   Asinius\Object                                                             *
+*   Asinius\Asinius                                                            *
 *                                                                              *
 *   Miscellaneous methods used by other classes.                               *
 *                                                                              *
@@ -36,11 +36,11 @@ namespace Asinius;
 
 /*******************************************************************************
 *                                                                              *
-*   \Asinius\Object                                                            *
+*   \Asinius\Asinius                                                           *
 *                                                                              *
 *******************************************************************************/
 
-class Object
+class Asinius
 {
 
 

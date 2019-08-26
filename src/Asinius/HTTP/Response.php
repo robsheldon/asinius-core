@@ -130,7 +130,7 @@ class Response
      */
     public function __construct ($response_values)
     {
-        \Asinius\Object::enforce_created_by('\Asinius\HTTP\Client');
+        \Asinius\Asinius::enforce_created_by('\Asinius\HTTP\Client');
         $this->_raw = $response_values;
         $this->_properties['code'] = $response_values['response_code'];
     }
