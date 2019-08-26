@@ -175,8 +175,19 @@ class Client
         }
         //  Handle a "project" identifier.
         if ( array_key_exists('project', $parameters) ) {
+            $project_phids = [];
             $projects = is_array($parameters['project']) ? $parameters['project'] : [$parameters['project']];
-            $parameters['constraints']['projects'] = $projects;
+            foreach ($projects as $project) {
+                if ( is_string($project) ) {
+                    $project_phids[] = $project;
+                }
+                else if ( is_a($project, '\Asinius\Phabricator\Project') ) {
+                    $project_phids[] = $project->phid;
+                }
+            }
+            if ( ! empty($project_phids) ) {
+                $parameters['constraints']['projects'] = $project_phids;
+            }
             unset($parameters['project']);
         }
         return $this->_generate('\Asinius\Phabricator\Task', $this->_fetch_all('POST', 'maniphest.search', $parameters));
