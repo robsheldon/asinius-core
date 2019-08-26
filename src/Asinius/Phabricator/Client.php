@@ -185,6 +185,12 @@ class Client
     }
 
 
+    public function workboard_columns ($parameters = ['queryKey' => 'all'])
+    {
+        return $this->_fetch_all('POST', 'project.column.search', $parameters);
+    }
+
+
     public function commits ($parameters = ['queryKey' => 'all'])
     {
         if ( array_key_exists('task_phids', $parameters) ) {
