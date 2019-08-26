@@ -176,7 +176,7 @@ class Client
         //  Handle a "project" identifier.
         if ( array_key_exists('project', $parameters) ) {
             $projects = is_array($parameters['project']) ? $parameters['project'] : [$parameters['project']];
-            $parameters['constraints']['projects'] = $parameters['project'];
+            $parameters['constraints']['projects'] = $projects;
             unset($parameters['project']);
         }
         return $this->_generate('\Asinius\Phabricator\Task', $this->_fetch_all('POST', 'maniphest.search', $parameters));
