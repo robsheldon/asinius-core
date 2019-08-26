@@ -67,7 +67,11 @@ class Project extends PhObject
      */
     public function workboard ()
     {
-        return $this->_client->workboard_columns(['project' => $this]);
+        $workboards = $this->_client->workboard_columns(['project' => $this]);
+        if ( is_array($workboards) && ! empty($workboards) ) {
+            //  A project should only have one workboard.
+            return array_shift($workboards);
+        }
     }
 
 
