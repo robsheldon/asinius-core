@@ -83,10 +83,10 @@ class Client
         $parameters['api.token'] = $this->_api_key;
         switch ($method) {
             case 'GET':
-                $response = $this->_http->get($this->url . $path, $parameters);
+                $response = $this->_http->get($this->_url . $path, $parameters);
                 break;
             case 'POST':
-                $response = $this->_http->post($this->url . $path, $parameters);
+                $response = $this->_http->post($this->_url . $path, $parameters);
                 break;
             default:
                 throw new RuntimeException("Unsupported API request method: $method", EINVAL);
