@@ -50,7 +50,7 @@ class Asinius
      *
      * @author  Rob Sheldon <rob@robsheldon.com>
      *
-     * @param   string      $class
+     * @param   string      $classes
      * 
      * @throws  RuntimeException
      *
@@ -58,26 +58,33 @@ class Asinius
      * 
      * @return  void
      */
-    public static function enforce_created_by ($class)
+    public static function enforce_created_by ($classes)
     {
+        if ( is_string($classes) ) {
+            $classes = [$classes];
+        }
         $stack_trace = debug_backtrace();
         array_shift($stack_trace);
         $child_class = '';
         foreach ($stack_trace as $caller) {
             if ( array_key_exists('object', $caller) ) {
-                if ( is_a($caller['object'], $class) ) {
-                    return;
-                }
                 if ( empty($child_class) ) {
                     $child_class = get_class($caller['object']);
+                    continue;
+                }
+                for ($classes as $class) {
+                    if ( is_a($caller['object'], $class) ) {
+                        return;
+                    }
                 }
             }
             else if ( array_key_exists('class', $caller) && array_key_exists('type', $caller) && $caller['type'] == '::' ) {
-                if ( $caller['class'] == $class ) {
-                    return;
-                }
                 if ( empty($child_class) ) {
                     $child_class = $caller['class'];
+                    continue;
+                }
+                if ( in_array($caller['class'], $classes) ) {
+                    return;
                 }
             }
         }
