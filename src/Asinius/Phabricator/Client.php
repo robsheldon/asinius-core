@@ -159,8 +159,25 @@ class Client
 
     public function tasks ($parameters = ['queryKey' => 'all'])
     {
-        if ( ! array_key_exists('attachments', $parameters) ) {
-            $parameters['attachments'] = ['projects' => true];
+        //  Fill in any missing keys.
+        $parameters = array_merge(['attachments' => [], 'constraints' => []], $parameters);
+        //  Ensure that project and column information is included with the tasks.
+        $parameters['attachments'] = array_merge($parameters['attachments'], ['projects' => true, 'columns' => true]);
+        //  Handle the "active" flag.
+        if ( array_key_exists('active', $parameters) ) {
+            if ( $parameters['active'] ) {
+                $parameters['constraints']['statuses'] = ['open'];
+            }
+            else {
+                $parameters['constraints']['statuses'] = ['closed'];
+            }
+            unset($parameters['active']);
+        }
+        //  Handle a "project" identifier.
+        if ( array_key_exists('project', $parameters) ) {
+            $projects = is_array($parameters['project']) ? $parameters['project'] : [$parameters['project']];
+            $parameters['constraints']['projects'] = $project;
+            unset($parameters['project']);
         }
         return $this->_generate('\Asinius\Phabricator\Task', $this->_fetch_all('POST', 'maniphest.search', $parameters));
     }
