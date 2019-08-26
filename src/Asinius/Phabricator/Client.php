@@ -230,6 +230,9 @@ class Client
     public function projects ($parameters = ['queryKey' => 'all'])
     {
         $this->_make_constraint('name', 'name', $parameters);
+        if ( ! empty($parameters['constraints']['name']) ) {
+            $parameters['constraints']['name'] = $parameters['constraints']['name'][0];
+        }
         return $this->_generate('\Asinius\Phabricator\Project', $this->_fetch_all('POST', 'project.search', $parameters));
     }
 
