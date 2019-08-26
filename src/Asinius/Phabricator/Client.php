@@ -147,11 +147,8 @@ class Client
     }
 
 
-    public function tasks ($parameters = null)
+    public function tasks ($parameters = ['queryKey' => 'all'])
     {
-        if ( is_null($parameters) ) {
-            $parameters = array('queryKey' => 'all');
-        }
         if ( ! array_key_exists('attachments', $parameters) ) {
             $parameters['attachments'] = array('projects' => true);
         }
@@ -159,39 +156,27 @@ class Client
     }
 
 
-    public function transactions ($parameters = null)
+    public function transactions ($parameters = ['queryKey' => 'all'])
     {
         //  example $phid: PHID-TASK-crsxxcbunakc5qy6fpjf
-        if ( is_null($parameters) ) {
-            $parameters = array('queryKey' => 'all');
-        }
         return $this->_fetch_all('POST', 'transaction.search', $parameters);
     }
 
 
-    public function users ($parameters = null)
+    public function users ($parameters = ['queryKey' => 'all'])
     {
-        if ( is_null($parameters) ) {
-            $parameters = array('queryKey' => 'all');
-        }
         return $this->_fetch_all('POST', 'user.search', $parameters);
     }
 
 
-    public function projects ($parameters = null)
+    public function projects ($parameters = ['queryKey' => 'all'])
     {
-        if ( is_null($parameters) ) {
-            $parameters = array('queryKey' => 'all');
-        }
         return $this->_fetch_all('POST', 'project.search', $parameters);
     }
 
 
-    public function commits ($parameters = null)
+    public function commits ($parameters = ['queryKey' => 'all'])
     {
-        if ( is_null($parameters) ) {
-            $parameters = array('queryKey' => 'all');
-        }
         if ( array_key_exists('task_phids', $parameters) ) {
             //  Perform an "edge" search to retrieve commit PHIDs associated
             //  with specific tasks.
@@ -201,7 +186,7 @@ class Client
             }
             unset($parameters['task_phids']);
             $commit_phids = array();
-            $matches = $this->_fetch_all('POST', 'edge.search', array('types' => ['task.commit'], 'sourcePHIDs' => $task_phids));
+            $matches = $this->_fetch_all('POST', 'edge.search', ['types' => ['task.commit'], 'sourcePHIDs' => $task_phids]);
             if ( empty($matches) ) {
                 //  There are no commits for these tasks.
                 return [];
@@ -233,14 +218,14 @@ class Client
                 case 'description':
                 case 'status':
                 case 'owner':
-                    $transactions[] = array('type' => $property, 'value' => $value);
+                    $transactions[] = ['type' => $property, 'value' => $value];
                     break;
                 case 'projects':
                     $projects = array_unique(array_merge($projects, $value));
                     break;
                 case 'comments':
                     foreach ($value as $comment) {
-                        $transactions[] = array('type' => 'comment', 'value' => $comment);
+                        $transactions[] = ['type' => 'comment', 'value' => $comment];
                     }
                     break;
             }
@@ -248,7 +233,7 @@ class Client
         if ( ! empty($projects) ) {
             $transactions[] = array('type' => 'projects.set', 'value' => $projects);
         }
-        return $this->_fetch_all('POST', 'maniphest.edit', array('transactions' => $transactions));
+        return $this->_fetch_all('POST', 'maniphest.edit', ['transactions' => $transactions]);
     }
 
 }
