@@ -41,7 +41,7 @@ namespace Asinius\Phabricator;
 *                                                                              *
 *******************************************************************************/
 
-class Workboard\Column extends PhObject
+class \Asinius\Phabricator\Workboard\Column extends PhObject
 {
 
 
