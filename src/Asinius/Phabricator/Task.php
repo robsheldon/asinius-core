@@ -75,7 +75,7 @@ class Task extends PhObject
      *
      * @return  boolean
      */
-    public function __get ($property)
+    public function __isset ($property)
     {
         if ( $property == 'commits' ) {
             return true;
