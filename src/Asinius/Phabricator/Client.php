@@ -289,7 +289,7 @@ class Client
                     $transactions[] = ['type' => $property, 'value' => $value];
                     break;
                 case 'column':
-                    $transactions[] = ['type' => $property, 'value' => $value->phid];
+                    $transactions[] = ['type' => $property, 'value' => $value];
                     break;
                 case 'projects':
                     $projects = array_unique(array_merge($projects, $value));

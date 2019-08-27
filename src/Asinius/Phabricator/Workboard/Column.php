@@ -67,7 +67,7 @@ class Column extends \Asinius\Phabricator\PhObject
      */
     public function create_task ($properties)
     {
-        $properties['column'] = $this;
+        $properties['column'] = [$this->phid];
         $properties['projects'] = [$this->_properties['project']['phid']];
         return $this->_client->create_task($properties);
     }
