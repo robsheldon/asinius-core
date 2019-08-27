@@ -58,4 +58,19 @@ class Column extends \Asinius\Phabricator\PhObject
     }
 
 
+    /**
+     * Create a new task and attach it to this column.
+     *
+     * @author  Rob Sheldon <rob@robsheldon.com>
+     *
+     * @return  \Asinius\Phabricator\Task
+     */
+    public function create_task ($properties)
+    {
+        $properties['column'] = $this;
+        $properties['projects'] = [$this->_properties['project']['phid']];
+        return $this->_client->create_task($properties);
+    }
+
+
 }

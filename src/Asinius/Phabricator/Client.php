@@ -278,8 +278,8 @@ class Client
 
     public function create_task ($properties)
     {
-        $transactions = array();
-        $projects = array();
+        $transactions = [];
+        $projects = [];
         foreach ($properties as $property => $value) {
             switch ($property) {
                 case 'title':
@@ -287,6 +287,9 @@ class Client
                 case 'status':
                 case 'owner':
                     $transactions[] = ['type' => $property, 'value' => $value];
+                    break;
+                case 'column':
+                    $transactions[] = ['type' => $property, 'value' => $value->phid];
                     break;
                 case 'projects':
                     $projects = array_unique(array_merge($projects, $value));
@@ -299,7 +302,7 @@ class Client
             }
         }
         if ( ! empty($projects) ) {
-            $transactions[] = array('type' => 'projects.set', 'value' => $projects);
+            $transactions[] = ['type' => 'projects.set', 'value' => $projects];
         }
         return $this->_fetch_all('POST', 'maniphest.edit', ['transactions' => $transactions]);
     }

@@ -98,4 +98,20 @@ class PhObject
     }
 
 
+
+    /**
+     * Return true if a property exists, false otherwise.
+     *
+     * @author  Rob Sheldon <rob@robsheldon.com>
+     *
+     * @param   string      $property
+     *
+     * @return  boolean
+     */
+    function __isset ($property)
+    {
+        return array_key_exists($property);
+    }
+
+
 }

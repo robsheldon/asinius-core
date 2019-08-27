@@ -67,6 +67,24 @@ class Task extends PhObject
 
 
     /**
+     * Handle __isset() for associated commits.
+     *
+     * @author  Rob Sheldon <rob@robsheldon.com>
+     *
+     * @param   string      $property
+     *
+     * @return  boolean
+     */
+    public function __get ($property)
+    {
+        if ( $property == 'commits' ) {
+            return true;
+        }
+        return parent::__isset($property);
+    }
+
+
+    /**
      * Return any commits associated with this task.
      *
      * @author  Rob Sheldon <rob@robsheldon.com>
