@@ -7,8 +7,6 @@
         "lib-curl": "*"
     },
     "autoload": {
-        "psr-4": {
-            "Asinius\\": "src/Asinius/"
-        }
+        "files": ["src/Asinius/Asinius.php"]
     }
 }

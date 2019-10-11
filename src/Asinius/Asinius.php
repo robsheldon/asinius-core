@@ -44,6 +44,94 @@ class Asinius
 {
 
 
+    private static $_inited         = false;
+    private static $_class_files    = [];
+
+
+    public static function init ()
+    {
+        if ( self::$_inited ) {
+            return;
+        }
+        spl_autoload_register(['self', 'autoload'], true);
+        self::$_inited = true;
+    }
+
+
+    /**
+     * Autoloader for Asinius library classes. This function lazy-loads the
+     * directory structure for its various class files as they are requested.
+     *
+     * @author  Rob Sheldon <rob@robsheldon.com>
+     *
+     * @param   string      $classsname
+     *
+     * @internal
+     *
+     * @return  void
+     */
+    private static function autoload ($classname)
+    {
+        $classfile = explode('\\', $classname . '.php');
+        if ( __NAMESPACE__ . '\\' . array_shift($classfile) != __CLASS__ ) {
+            return;
+        }
+        $path = __DIR__;
+        //  Grab a reference to the local file cache to make recursive
+        //  updates possible.
+        $cached = &self::$_class_files;
+        while ( count($classfile) ) {
+            $find = array_shift($classfile);
+            if ( empty($cached) ) {
+                //  If we are currently descended into a directory that doesn't
+                //  already have entries cached for it, then scan the directory
+                //  and parse and load the entries into the cache.
+                $entry_keys = array_filter(scandir($path), function($entry){
+                    return mb_strlen($entry) > 0 && mb_substr($entry, 0, 1) != '.';
+                });
+                $entry_values = array_map(function($entry) use($path){
+                    if ( is_dir($path . DIRECTORY_SEPARATOR . $entry) ) {
+                        return [];
+                    }
+                    return false;
+                }, $entry_keys);
+                $cached = array_combine($entry_keys, $entry_values);
+            }
+            //  If the thing we're looking for doesn't exist in this directory,
+            //  or if it exists as a file and we're looking for a directory,
+            //  then give up.
+            if ( ! array_key_exists($find, $cached) || (count($classfile) && $cached[$find] === false) ) {
+                return;
+            }
+            $path .= DIRECTORY_SEPARATOR . $find;
+            //  If we've found the thing we're looking for and it's readable,
+            //  load it and return.
+            if ( count($classfile) == 0 && array_key_exists($find, $cached) ) {
+                if ( ! is_readable($path) ) {
+                    //  I think it's appropriate to throw an expection here to
+                    //  make troubleshooting easier in cases where permissions
+                    //  have gotten screwed up.
+                    //  This violates PSR-4, but I've seen wonky permissions in
+                    //  team environments cause much wailing and gnashing of
+                    //  teeth, and this exception will only throw in the specific
+                    //  case that a file belonging to this library, matching
+                    //  the class path we're looking for, exists but is not
+                    //  readable.
+                    throw new RuntimeException("File not accessible: $path");
+                }
+                //  A closure is used here to prevent conflicts and access to
+                //  "self" or "$this".
+                (function($file){
+                    include $file;
+                })($path);
+                return;
+            }
+            //  Keep digging.
+            $cached = &$cached[$find];
+        }
+    }
+
+
     /**
      * Check the call stack to ensure that a class was instantiated by another
      * class.
@@ -96,3 +184,5 @@ class Asinius
 
 
 }
+
+Asinius::init();
