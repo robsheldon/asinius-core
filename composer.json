@@ -7,6 +7,12 @@
         "lib-curl": "*"
     },
     "autoload": {
-        "files": ["src/Asinius/Asinius.php"]
+        "psr-4": {
+            "Asinius\\": "src/Asinius/"
+        },
+        "exclude-from-classmap": ["/src/Asinius/autoload.php"]
+    },
+    "config": {
+        "optimize-autoloader": true
     }
 }

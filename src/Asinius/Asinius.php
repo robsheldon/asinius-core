@@ -44,17 +44,23 @@ class Asinius
 {
 
 
-    private static $_inited         = false;
-    private static $_class_files    = [];
+    private static $_class_files    = false;
 
 
-    public static function init ()
+    /**
+     * Register the autoloader. This only gets used in manual installations
+     * (without Composer). Do not call this in a Composer installation.
+     *
+     * @author  Rob Sheldon <rob@robsheldon.com>
+     *
+     * @return  void
+     */
+    public static function init_autoloader ()
     {
-        if ( self::$_inited ) {
+        if ( is_array(self::$_class_files) ) {
             return;
         }
         spl_autoload_register(['self', 'autoload'], true);
-        self::$_inited = true;
     }
 
 
@@ -72,6 +78,9 @@ class Asinius
      */
     private static function autoload ($classname)
     {
+        if ( ! is_array(self::$_class_files) ) {
+            self::init_autoloader();
+        }
         $classfile = explode('\\', $classname . '.php');
         if ( __NAMESPACE__ . '\\' . array_shift($classfile) != __CLASS__ ) {
             return;
@@ -184,5 +193,3 @@ class Asinius
 
 
 }
-
-Asinius::init();
