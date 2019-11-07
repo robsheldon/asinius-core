@@ -8,7 +8,7 @@
 *                                                                              *
 *   LICENSE                                                                    *
 *                                                                              *
-*   Copyright (c) 2019 Rob Sheldon <rob@robsheldon.com>                        *
+*   Copyright (c) 2019 Rob Sheldon <rob@rescue.dev>                            *
 *                                                                              *
 *   Permission is hereby granted, free of charge, to any person obtaining a    *
 *   copy of this software and associated documentation files (the "Software"), *
@@ -51,7 +51,7 @@ class Asinius
      * Register the autoloader. This only gets used in manual installations
      * (without Composer). Do not call this in a Composer installation.
      *
-     * @author  Rob Sheldon <rob@robsheldon.com>
+     * @author  Rob Sheldon <rob@rescue.dev>
      *
      * @return  void
      */
@@ -68,7 +68,7 @@ class Asinius
      * Autoloader for Asinius library classes. This function lazy-loads the
      * directory structure for its various class files as they are requested.
      *
-     * @author  Rob Sheldon <rob@robsheldon.com>
+     * @author  Rob Sheldon <rob@rescue.dev>
      *
      * @param   string      $classsname
      *
@@ -145,7 +145,7 @@ class Asinius
      * Check the call stack to ensure that a class was instantiated by another
      * class.
      *
-     * @author  Rob Sheldon <rob@robsheldon.com>
+     * @author  Rob Sheldon <rob@rescue.dev>
      *
      * @param   string      $classes
      * 
