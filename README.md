@@ -14,4 +14,4 @@ This is the library "core". It currently includes an autoloading "polyfill" func
 
 ## License
 
-All of the Asinius project and its related modules are being released under the MIT License. See LICENSE.
+All of the Asinius project and its related modules are being released under the [MIT License](https://opensource.org/licenses/MIT). See LICENSE.
