@@ -61,6 +61,7 @@ class Asinius
             return;
         }
         spl_autoload_register(['self', 'autoload'], true);
+        self::$_class_files = [];
     }
 
 
