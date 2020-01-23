@@ -4,7 +4,7 @@
 
 Asinius is a personal hobby-project. I'm gathering up a lot of my PHP snippets, library functions and classes, and other bits and pieces from many different projects into a loosely-coupled utility library that follows modern PHP development practices. I'm mirroring this copy on GitHub from my personal Phabricator server. There's no reason for anybody else to use this, but feel free to have a look around or offer suggestions and pull requests.
 
-"Asinius" is a reference to [https://eaglesanddragonspublishing.com/gaius-asinius-pollio-and-the-first-public-library-in-ancient-rome/](the first public library), which clearly this isn't. But it's a fun name and historical reference anyway.
+"Asinius" is a reference to [the first public library](https://eaglesanddragonspublishing.com/gaius-asinius-pollio-and-the-first-public-library-in-ancient-rome/), which clearly this isn't. But it's a fun name and historical reference anyway.
 
 This is not intended to be, and will never become, a framework. This is an exploration of the old-school library architecture, recast for modern development.
 
