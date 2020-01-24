@@ -177,8 +177,7 @@ class Asinius
 
 
     /**
-     * Check the call stack to ensure that a class was instantiated by another
-     * class.
+     * Check the call stack to ensure that an object was instantiated by a specific class.
      *
      * @author  Rob Sheldon <rob@rescue.dev>
      *
@@ -190,7 +189,7 @@ class Asinius
      * 
      * @return  void
      */
-    public static function enforce_created_by ($classes)
+    public static function assert_parent ($classes)
     {
         if ( is_string($classes) ) {
             $classes = [$classes];
