@@ -45,6 +45,7 @@ class Asinius
 
 
     private static $_class_files    = false;
+    private static $_path_prefix    = '';
 
 
     /**
@@ -62,6 +63,16 @@ class Asinius
         }
         spl_autoload_register(['self', 'autoload'], true);
         self::$_class_files = [];
+        //  The path to this file should look something like
+        //  blah/blah/asinius/core/src/Asinius/Asinius.php
+        //  Capture the "blah/blah/asinius" part.
+        self::$_path_prefix = realpath(implode(DIRECTORY_SEPARATOR, [__DIR__, '..', '..', '..']));
+        if ( self::$_path_prefix === false ) {
+            //  It's tempting to set this to some string and continue, but this
+            //  is a situation that at best will break the autoloader in weird
+            //  ways and at worst could cause a path traversal security issue.
+            throw new \RuntimeException("Can't find path to Asinius components. Asinius.php should be in core/src/Asinius/Asinius.php somewhere in your project.");
+        }
     }
 
 
@@ -86,7 +97,17 @@ class Asinius
         if ( __NAMESPACE__ . '\\' . array_shift($classfile) != __CLASS__ ) {
             return;
         }
-        $path = __DIR__;
+        $path = self::$_path_prefix;
+        //  Construct Composer-compatible PSR-4 path to the requested component.
+        //  If $classname was something like, "Asinius\Thing", then assume that
+        //  it's a core component.
+        //  Otherwise, e.g. "Asinius\HTTP\Thing" should be in asinius/http/src/HTTP/Thing.php.
+        if ( count($classfile) < 2 ) {
+            $path .= implode(DIRECTORY_SEPARATOR, ['', 'core', 'src', 'Asinius']);
+        }
+        else {
+            $path .= implode(DIRECTORY_SEPARATOR, ['', strtolower($classfile[0]), 'src']);
+        }
         //  Grab a reference to the local file cache to make recursive
         //  updates possible.
         $cached = &self::$_class_files;
