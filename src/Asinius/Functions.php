@@ -2,9 +2,9 @@
 
 /*******************************************************************************
 *                                                                              *
-*   Asinius\TextLib                                                            *
+*   Asinius\Functions                                                          *
 *                                                                              *
-*   A superclass of lower-level text juggling functions -- things that I wish  *
+*   A superclass of lower-level miscellaneous functions -- things that I wish  *
 *   were present in the PHP standard library.                                  *
 *                                                                              *
 *   LICENSE                                                                    *
@@ -38,11 +38,11 @@ namespace Asinius;
 
 /*******************************************************************************
 *                                                                              *
-*   \Asinius\TextLib                                                           *
+*   \Asinius\Functions                                                         *
 *                                                                              *
 *******************************************************************************/
 
-class TextLib
+class Functions
 {
 
     const DEFAULT_QUOTES = [["'", "'"], ['"', '"']];
