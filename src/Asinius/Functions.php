@@ -102,7 +102,7 @@ class Functions
         //  Thus every even-indexed array element will be further split by
         //  $delimiters, while the odd-indexed elements will be returned unchanged.
         if ( is_string($delimiters) ) {
-            $regex = '[' . preg_quote($delimiters, '/') . '][^' . preg_quote($delimiters, '/') . ']+';
+            $regex = '[' . preg_quote($delimiters, '/') . '][^' . preg_quote($delimiters, '/') . ']*';
         }
         else if ( is_array($delimiters) ) {
             $delimiters = implode('|', array_map(function($delimiter){
