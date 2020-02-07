@@ -57,8 +57,6 @@ class Environment
     /**
      * Provide on-demand access to defined properties.
      *
-     * @author  Rob Sheldon <rob@rescue.dev>
-     * 
      * @param   string      $function
      * @param   array       $arguments
      *
@@ -108,8 +106,6 @@ class Environment
      * property was successfully saved, false if it already existed or had
      * a null value.
      *
-     * @author  Rob Sheldon <rob@rescue.dev>
-     * 
      * @param   string      $property
      * @param   mixed       $value
      *
@@ -128,8 +124,6 @@ class Environment
     /**
      * Returns true if a property is defined, false otherwise.
      *
-     * @author  Rob Sheldon <rob@rescue.dev>
-     *
      * @param   string      $property
      *
      * @return  boolean
@@ -144,8 +138,6 @@ class Environment
      * Returns a simple array of all of the currently available environmental
      * properties with each of their values filled in. This function may get
      * expensive in the future and should be used only for debugging purposes.
-     *
-     * @author  Rob SHeldon <rob@rescue.dev>
      *
      * @return  array
      */

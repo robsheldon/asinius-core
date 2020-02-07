@@ -55,8 +55,6 @@ class Network
      * false if there was no ping response within the timeout period, and null
      * if no ping method was available.
      *
-     * @author  Rob Sheldon <rob@rescue.dev>
-     *
      * @param   string      $address
      * @param   float       $max_timeout
      *
@@ -110,8 +108,6 @@ class Network
      * Try to open a tcp connection to a specific address/port within $max_timeout
      * seconds.
      *
-     * @author  Rob Sheldon <rob@rescue.dev>
-     *
      * @param   string      $address
      * @param   int         $port
      * @param   float       $max_timeout
@@ -142,8 +138,6 @@ class Network
      * Results are collated so if you want to test multiple hosts on multiple
      * ports you may want to loop over them.
      *
-     * @author  Rob Sheldon <rob@rescue.dev>
-     * 
      * @param   array       $addresses
      * @param   float       $max_timeout
      *
@@ -189,8 +183,6 @@ class Network
      * Test the status of the network and return a simple array of the results.
      * WARNING: This function may take several seconds to complete if the network
      * connection is badly degraded.
-     *
-     * @author  Rob Sheldon <rob#rescue.dev>
      *
      * @param   float       $max_timeout
      *
