@@ -112,6 +112,11 @@ interface Datastream
     public function search ($query);
 
     /**
+     * Return true if there is nothing more to read(), false otherwise.
+     */
+    public function empty ();
+
+    /**
      * Return the next bytes, page, row, line, element, etc. Return null when
      * there is no more data to return.
      */
@@ -134,7 +139,7 @@ interface Datastream
      * Datastreams must implement a function that can accept data to be sent
      * to the other end of the stream.
      */
-    public function write ();
+    public function write ($data);
 
     /**
      * Datastreams must implement a function that will cleanly shut down the
