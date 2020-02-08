@@ -42,9 +42,12 @@ namespace Asinius;
 *******************************************************************************/
 
 //  Error codes familiar to C programmers.
+//  (from https://web.archive.org/web/20180731183139/http://www.virtsync.com/c-error-codes-include-errno)
 
 //  Invalid function argument
 defined('EINVAL')   or define('EINVAL', 22);
+//  Function not implemented.
+defined('ENOSYS')   or define('ENOSYS', 38);
 
 
 /*******************************************************************************
