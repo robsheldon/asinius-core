@@ -45,7 +45,9 @@ namespace Asinius;
 class Functions
 {
 
-    const DEFAULT_QUOTES = [["'", "'"], ['"', '"']];
+    const DEFAULT_QUOTES   = [["'", "'"], ['"', '"']];
+    const DEFAULT_PARENS   = [['(', ')']];
+    const DEFAULT_BRACKETS = [['[', ']'], ['{', '}']];
 
     /**
      * A combination of strtok() and explode(), with support for quoted chunks.
