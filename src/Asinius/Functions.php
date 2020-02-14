@@ -140,4 +140,70 @@ class Functions
         return $chunks;
     }
 
+
+    /**
+     * Similar to addslashes(), but idempotent: it only escapes characters in a
+     * string if the string hasn't already been fully escaped.
+     *
+     * @param   string      $string
+     * @return  string
+     */
+    public static function escape_str ($string, $escape_chars = '\"')
+    {
+        $chunks = static::str_chunk($string, $escape_chars);
+        $n = count($chunks);
+        for ( $i = 0; $i < $n; $i++ ) {
+            if ( $chunks[$i][0] == '\\' ) {
+                $i++;
+                continue;
+            }
+            if ( strpos($escape_chars, $chunks[$i][0]) === false ) {
+                continue;
+            }
+            //  If we're here, then the string is not fully escaped and a
+            //  backslash must be prepended to each chunk.
+            $chunks = array_map(function($chunk){
+                return '\\' . $chunk;
+            }, $chunks);
+            break;
+        }
+        return implode('', $chunks);
+    }
+
+
+    /**
+     * Convert various data types and values to a cleaner string representation
+     * than PHP's native var_dump() or print_r() functions. var_dump() is still
+     * better if you need to look inside an object; this is better if you want
+     * to log some basic stuff to a file or include a value in an error message.
+     * 
+     * @param   mixed       $thing
+     * @return  string
+     */
+    public static function to_str ($thing)
+    {
+        switch (true) {
+            case (is_string($thing)):
+                return '"' . static::escape_str($thing) . '"';
+            case (is_int($thing)):
+                return "int($thing)";
+            case (is_float($thing)):
+                return "float($thing)";
+            case (is_bool($thing)):
+                return $thing ? 'bool(true)' : 'bool(false)';
+            case (is_null($thing)):
+                return 'null';
+            case (is_resource($thing)):
+                return 'resource(' . get_resource_type($thing) . ')';
+            case (is_object($thing)):
+                return 'object(' . get_class($thing) . ')';
+            case (is_array($thing)):
+                $values = array_map(function($element){
+                    return \Asinius\Functions::to_str($element);
+                }, $thing);
+                return '[' . implode(', ', $values) . ']';
+            default:
+                return '(' . gettype($thing) . ')';
+        }
+    }
 }
