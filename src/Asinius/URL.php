@@ -65,7 +65,7 @@ class URL
         'magnet'                        => '',
         'mailto'                        => '',
         'mssql'                         => '',
-        'mysql'                         => '',
+        'mysql'                         => '\Asinius\MySQL\URL',
         'news'                          => '',
         'nfs'                           => '',
         'nntp'                          => '',
@@ -1021,7 +1021,7 @@ class URL
      *
      * @return  \Asinius\URL
      */
-    public function __construct ($url, $handler)
+    public function __construct ($url, $handler = '\Asinius\URL')
     {
         $this->_handler = $handler;
         $this->_original_url = $url;
@@ -1081,7 +1081,7 @@ class URL
      */
     public function __isset ($component)
     {
-        return in_array($component, $this->_components) || is_callable([$this, "_get_$component"]);
+        return array_key_exists($component, $this->_components) || is_callable([$this, "_get_$component"]);
     }
 
 
