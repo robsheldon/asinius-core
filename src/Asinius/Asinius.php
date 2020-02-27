@@ -44,10 +44,16 @@ namespace Asinius;
 //  Error codes familiar to C programmers.
 //  (from https://web.archive.org/web/20180731183139/http://www.virtsync.com/c-error-codes-include-errno)
 
-//  Invalid function argument
-defined('EINVAL')   or define('EINVAL', 22);
-//  Function not implemented.
-defined('ENOSYS')   or define('ENOSYS', 38);
+defined('EUNDEF')    or define('EUNDEF', -1);       //  Non-specific; try to avoid
+defined('ENOENT')    or define('ENOENT', 2);        //  File not found
+defined('EACCESS')   or define('EACCESS', 13);      //  Permission/access denied
+defined('EINVAL')    or define('EINVAL', 22);       //  Invalid function argument
+defined('ENOSYS')    or define('ENOSYS', 38);       //  Function not implemented.
+defined('ENODATA')   or define('ENODATA', 61);      //  No data available
+defined('EFTYPE')    or define('EFTYPE', 79);       //  Wrong file type
+//  Custom error conditions.
+defined('EPARSE')    or define('EPARSE', 201);      //  Parse error.
+defined('ENOCONFIG') or define('ENOCONFIG', 254);   //  Not configured
 
 
 /*******************************************************************************
