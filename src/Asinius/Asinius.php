@@ -359,6 +359,17 @@ trait RestrictedProperties
 
 
     /**
+     * Return true if a property value exists.
+     *
+     * @return  boolean
+     */
+    protected function _property_exists ($property)
+    {
+        return array_key_exists($property, $this->_properties);
+    }
+
+
+    /**
      * Lock an existing property, preventing its value from being changed unless
      * the changes are coming from code in this object.
      *
