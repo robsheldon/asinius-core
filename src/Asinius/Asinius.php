@@ -283,7 +283,7 @@ trait RestrictedProperties
      */
 
     protected $_properties = [
-        'restricted'    => false,       //  Prevent outside code from adding any new properties.
+        'restricted'    => true,        //  Prevent outside code from adding any new properties.
         'values'        => [],          //  Storage for property values.
     ];
 
@@ -345,7 +345,7 @@ trait RestrictedProperties
     {
         if ( ! array_key_exists($property, $this->_properties['values']) ) {
             if ( $this->_properties['restricted'] && ! static::_caller_is($this) ) {
-                throw new \RuntimeException("Can't create " . __CLASS__ . "->\$$property: properties for this object are currently restricted");
+                throw new \RuntimeException("Undefined property: " . __CLASS__ . "->\$$property (properties for this object are currently restricted)");
             }
             $this->_properties['values'][$property] = ['value' => $value, 'locked' => false];
         }
