@@ -230,3 +230,191 @@ class Asinius
 
 
 }
+
+
+
+/*******************************************************************************
+*                                                                              *
+*   CallerInfo trait                                                           *
+*                                                                              *
+*******************************************************************************/
+
+trait CallerInfo
+{
+
+    /**
+     * Returns true if the caller is the same instance or class.
+     *
+     * @param   mixed       $reference
+     *
+     * @return  boolean
+     */
+    protected static function _caller_is ($reference)
+    {
+        $stack = debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT | DEBUG_BACKTRACE_IGNORE_ARGS, 3);
+        //  If there are only two entries in the stack, then the function call
+        //  came from application code.
+        if ( count($stack) < 3 ) {
+            return false;
+        }
+        $caller = array_pop($stack);
+        //  In an instantiated object context, the object reference must match.
+        //  In a static context, the class reference must match.
+        if ( ($caller['type'] == '->' && $caller['object'] == $reference) || ($caller['type'] == '::' && $caller['class'] == __CLASS__) ) {
+            return true;
+        }
+        return false;
+    }
+}
+
+
+
+/*******************************************************************************
+*                                                                              *
+*   RestrictedProperties trait                                                 *
+*                                                                              *
+*******************************************************************************/
+
+trait RestrictedProperties
+{
+    /*
+     * The RestrictedProperties trait provides all of the code necessary for
+     * handling normal, lazy-loaded, or read-only properties in a class.
+     */
+
+    protected $_properties = [
+        'restricted'    => false,       //  Prevent outside code from adding any new properties.
+        'values'        => [],          //  Storage for property values.
+    ];
+
+    //  The CallerInfo trait is used here for controlled access to properties.
+    use \Asinius\CallerInfo;
+
+
+    /**
+     * Return the value of a property. If the property doesn't already exist in
+     * $this->_properties, then a "_get_[property]" function will called, if
+     * available.
+     * 
+     * @param   string      $property
+     *
+     * @throws  \RuntimeException
+     * 
+     * @return  mixed
+     */
+    public function __get ($property)
+    {
+        if ( array_key_exists($property, $this->_properties) ) {
+            return $this->_properties['values'][$property]['value'];
+        }
+        if ( is_callable([$this, "get_$property"]) ) {
+            return call_user_func([$this, "get_$property"]);
+        }
+        throw new \RuntimeException("Undefined property: " . __CLASS__ . "->\$$property");
+    }
+
+
+    /**
+     * Returns true if the given property exists, false otherwise.
+     *
+     * @param   string      $property
+     *
+     * @return  boolean
+     */
+    public function __isset ($property)
+    {
+        return array_key_exists($property, $this->_properties) || is_callable([$this, "get_$property"]);
+    }
+
+
+    /**
+     * Change the value for a property if:
+     *     - The property doesn't exist and properties are unrestricted;
+     *     - The property exists but is not locked;
+     *     - The change is coming from a function call in the current object.
+     * Otherwise, throw an error.
+     *
+     * @param   string      $property
+     * @param   mixed       $value
+     *
+     * @throws  \RuntimeException
+     *
+     * @return  void
+     */
+    public function __set ($property, $value)
+    {
+        if ( ! array_key_exists($property, $this->_properties['values']) ) {
+            if ( $this->_properties['restricted'] && ! static::_caller_is($this) ) {
+                throw new \RuntimeException("Can't create " . __CLASS__ . "->\$$property: properties for this object are currently restricted");
+            }
+            $this->_properties['values'][$property] = ['value' => $value, 'locked' => false];
+        }
+        else if ( $this->_properties['values'][$property]['locked'] && ! static::_caller_is($this) ) {
+            throw new \RuntimeException("Can't set " . __CLASS__ . "->\$$property: this property is currently read-only");
+        }
+        else {
+            $this->_properties['values'][$property]['value'] = $value;
+        }
+    }
+
+
+    /**
+     * Lock an existing property, preventing its value from being changed unless
+     * the changes are coming from code in this object.
+     *
+     * @param  string       $property
+     *
+     * @throws \RuntimeException
+     *
+     * @return void
+     */
+    protected function _lock_property ($property)
+    {
+        if ( ! array_key_exists($property, $this->_properties['values']) ) {
+            throw new \RuntimeException("Can't lock " . __CLASS__ . "->\$$property: this property does not exist");
+        }
+        $this->_properties['values'][$property]['locked'] = true;
+    }
+
+
+    /**
+     * Unlock an existing property, allowing it to be changed by external code.
+     *
+     * @param  string       $property
+     *
+     * @throws \RuntimeException
+     *
+     * @return void
+     */
+    protected function _unlock_property ($property)
+    {
+        if ( ! array_key_exists($property, $this->_properties['values']) ) {
+            throw new \RuntimeException("Can't unlock " . __CLASS__ . "->\$$property: this property does not exist");
+        }
+        $this->_properties['values'][$property]['locked'] = false;
+    }
+
+
+    /**
+     * Prevent external code from adding any new properties to this object.
+     * The object can still add new properties to itself.
+     *
+     * @return void
+     */
+    protected function _restrict_properties ()
+    {
+        $this->_properties['restricted'] = true;
+    }
+
+
+    /**
+     * Allow external code to add new properties to this object.
+     *
+     * @return void
+     */
+    protected function _unrestrict_properties ()
+    {
+        $this->_properties['restrictied'] = false;
+    }
+
+}
