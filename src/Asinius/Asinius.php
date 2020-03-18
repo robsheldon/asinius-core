@@ -304,7 +304,7 @@ trait RestrictedProperties
      */
     public function __get ($property)
     {
-        if ( array_key_exists($property, $this->_properties) ) {
+        if ( array_key_exists($property, $this->_properties['values']) ) {
             return $this->_properties['values'][$property]['value'];
         }
         if ( is_callable([$this, "get_$property"]) ) {
@@ -323,7 +323,7 @@ trait RestrictedProperties
      */
     public function __isset ($property)
     {
-        return array_key_exists($property, $this->_properties) || is_callable([$this, "get_$property"]);
+        return array_key_exists($property, $this->_properties['values']) || is_callable([$this, "get_$property"]);
     }
 
 
@@ -365,7 +365,7 @@ trait RestrictedProperties
      */
     protected function _property_exists ($property)
     {
-        return array_key_exists($property, $this->_properties);
+        return array_key_exists($property, $this->_properties['values']);
     }
 
 
