@@ -55,7 +55,7 @@ class URL
         'git'                           => '',
         'http'                          => '\Asinius\HTTP\URL',
         'https'                         => '\Asinius\HTTP\URL',
-        'imap'                          => '',
+        'imap'                          => '\Asinius\Imap\URL',
         'irc'                           => '',
         'irc6'                          => '',
         'jabber'                        => '',
