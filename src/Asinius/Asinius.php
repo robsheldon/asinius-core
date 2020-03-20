@@ -271,16 +271,15 @@ trait CallerInfo
 
 /*******************************************************************************
 *                                                                              *
-*   RestrictedProperties trait                                                 *
+*   DatastreamProperties trait                                                 *
 *                                                                              *
 *******************************************************************************/
 
-trait RestrictedProperties
+trait DatastreamProperties
 {
-    /*
-     * The RestrictedProperties trait provides all of the code necessary for
-     * handling normal, lazy-loaded, or read-only properties in a class.
-     */
+    //  The DatastreamProperties trait provides all of the code necessary for
+    //  handling normal, lazy-loaded, or read-only properties in a class that
+    //  implements the Datastream interface.
 
     protected $_properties = [
         'restricted'    => true,        //  Prevent outside code from adding any new properties.
