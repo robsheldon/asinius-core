@@ -206,4 +206,23 @@ class Functions
                 return '(' . gettype($thing) . ')';
         }
     }
+
+
+    /**
+     * Convert an array from ['a', 'b', 'c'] to ['a' => ['b' => 'c' => []]].
+     *
+     * @param   array       $array
+     *
+     * @return  array
+     */
+    public static function array_nest ($array)
+    {
+        $nested = [];
+        while ( count($array) ) {
+            $nested = [array_pop($array) => $nested];
+        }
+        return $nested;
+    }
+
+
 }
