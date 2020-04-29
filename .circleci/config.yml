@@ -8,15 +8,25 @@ jobs:
     steps:
       - checkout
 
-      - run: sudo apt update
-      - run: sudo apt install software-properties-common zlib1g-dev libsqlite3-dev
-      - run: sudo add-apt-repository ppa:ondrej/php
-      - run: sudo apt update
-      - run: sudo apt install -y php7.1 php7.2 php7.3 php7.4
-      - run: sudo apt install -y php7.1-{cgi,cli,fpm,bcmath,common,curl,gd,gmp,imagick,imap,intl,json,ldap,mbstring,mcrypt,mysql,mysqlnd,opcache,pgsql,readline,soap,tidy,xml,xmlrpc,zip}
-      - run: sudo apt install -y php7.2-{cgi,cli,fpm,bcmath,common,curl,gd,gmp,imagick,imap,intl,json,ldap,mbstring,mcrypt,mysql,mysqlnd,opcache,pgsql,readline,soap,tidy,xml,xmlrpc,zip}
-      - run: sudo apt install -y php7.3-{cgi,cli,fpm,bcmath,common,curl,gd,gmp,imagick,imap,intl,json,ldap,mbstring,mcrypt,mysql,mysqlnd,opcache,pgsql,readline,soap,tidy,xml,xmlrpc,zip}
-      - run: sudo apt install -y php7.4-{cgi,cli,fpm,bcmath,common,curl,gd,gmp,imagick,imap,intl,json,ldap,mbstring,mcrypt,mysql,mysqlnd,opcache,pgsql,readline,soap,tidy,xml,xmlrpc,zip}
+      - run:
+          name: Initial apt repository update
+          command: sudo apt-get update
+      - run:
+          name: Install dependencies
+          command: sudo apt install -y software-properties-common zlib1g-dev libsqlite3-dev
+      - run:
+          name: Add ondrej/sury PHP repository and update apt again
+          command: |
+            sudo add-apt-repository ppa:ondrej/php
+            sudo apt-get update
+      - run:
+          name: Install PHP versions
+          command: |
+            sudo apt install -y php7.1 php7.2 php7.3 php7.4
+            sudo apt install -y php7.1-{cgi,cli,fpm,bcmath,common,curl,gd,gmp,imagick,imap,intl,json,ldap,mbstring,mcrypt,mysql,mysqlnd,opcache,pgsql,readline,soap,tidy,xml,xmlrpc,zip}
+            sudo apt install -y php7.2-{cgi,cli,fpm,bcmath,common,curl,gd,gmp,imagick,imap,intl,json,ldap,mbstring,mcrypt,mysql,mysqlnd,opcache,pgsql,readline,soap,tidy,xml,xmlrpc,zip}
+            sudo apt install -y php7.3-{cgi,cli,fpm,bcmath,common,curl,gd,gmp,imagick,imap,intl,json,ldap,mbstring,mcrypt,mysql,mysqlnd,opcache,pgsql,readline,soap,tidy,xml,xmlrpc,zip}
+            sudo apt install -y php7.4-{cgi,cli,fpm,bcmath,common,curl,gd,gmp,imagick,imap,intl,json,ldap,mbstring,mcrypt,mysql,mysqlnd,opcache,pgsql,readline,soap,tidy,xml,xmlrpc,zip}
 
       # Download and cache dependencies
       # I have no idea what this is doing or why.
