@@ -9,13 +9,7 @@ jobs:
       - checkout
 
       - run:
-          name: Initial apt repository update
-          command: sudo apt-get update
-      - run:
-          name: Install dependencies
-          command: sudo apt install -y software-properties-common zlib1g-dev libsqlite3-dev
-      - run:
-          name: Add ondrej/sury PHP repository and update apt again
+          name: Add ondrej/sury PHP repository and update apt
           command: |
             OS_ID=$(cat /etc/*-release | grep -w "^ID" | cut -d= -f2 | tr -d '"')
             if [[ $OS_ID == "ubuntu" ]]; then
@@ -28,6 +22,9 @@ jobs:
               exit 1
             fi
             sudo apt-get update
+      - run:
+          name: Install dependencies
+          command: sudo apt install -y software-properties-common
       - run:
           name: Install PHP versions
           command: |
