@@ -1,0 +1,37 @@
+# CircleCI 2.0 configuration file
+#
+version: 2
+jobs:
+  build:
+    machine:
+    steps:
+      - checkout
+
+      - run: sudo apt update
+      - run: sudo apt install software-properties-common zlib1g-dev libsqlite3-dev
+      - run: sudo add-apt-repository ppa:ondrej/php
+      - run: sudo apt update
+      - run: sudo apt install -y php7.1 php7.2 php7.3 php7.4
+      - run: sudo apt install -y php7.1-{cgi,cli,fpm,bcmath,common,curl,gd,gmp,imagick,imap,intl,json,ldap,mbstring,mcrypt,mysql,mysqlnd,opcache,pgsql,readline,soap,tidy,xml,xmlrpc,zip}
+      - run: sudo apt install -y php7.2-{cgi,cli,fpm,bcmath,common,curl,gd,gmp,imagick,imap,intl,json,ldap,mbstring,mcrypt,mysql,mysqlnd,opcache,pgsql,readline,soap,tidy,xml,xmlrpc,zip}
+      - run: sudo apt install -y php7.3-{cgi,cli,fpm,bcmath,common,curl,gd,gmp,imagick,imap,intl,json,ldap,mbstring,mcrypt,mysql,mysqlnd,opcache,pgsql,readline,soap,tidy,xml,xmlrpc,zip}
+      - run: sudo apt install -y php7.4-{cgi,cli,fpm,bcmath,common,curl,gd,gmp,imagick,imap,intl,json,ldap,mbstring,mcrypt,mysql,mysqlnd,opcache,pgsql,readline,soap,tidy,xml,xmlrpc,zip}
+
+      # Download and cache dependencies
+      # I have no idea what this is doing or why.
+      - restore_cache:
+          keys:
+            # "composer.lock" can be used if it is committed to the repo
+            - v1-dependencies-{{ checksum "composer.json" }}
+            # fallback to using the latest cache if no exact match is found
+            - v1-dependencies-
+
+      - run: composer install -n --prefer-dist
+
+      - save_cache:
+          key: v1-dependencies-{{ checksum "composer.json" }}
+          paths:
+            - ./vendor
+
+      # run atoum tests
+      - run: ./vendor/bin/atoum -d ./tests/units
