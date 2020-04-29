@@ -19,7 +19,7 @@ jobs:
           command: |
             OS_ID=$(cat /etc/*-release | grep -w "^ID" | cut -d= -f2 | tr -d '"')
             if [[ $OS_ID == "ubuntu" ]]; then
-              sudo add-apt-repository -yu ppa:ondrej/php
+              sudo add-apt-repository -y ppa:ondrej/php
             elif [[ $OS_ID == "debian" ]]; then
               curl -fsSL https://packages.sury.org/php/apt.gpg | sudo apt-key add -
               sudo add-apt-repository "deb https://packages.sury.org/php/ $(lsb_release -cs) main"
