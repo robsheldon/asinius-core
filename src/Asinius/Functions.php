@@ -225,4 +225,34 @@ class Functions
     }
 
 
+    /**
+     * Return the first element of an array or other value.
+     *
+     * @param  mixed    $value
+     *
+     * @return mixed
+     */
+    public static function first ($value)
+    {
+        if ( is_array($value) ) {
+            return count($value) == 0 ? null : $value[0];
+        }
+    }
+
+
+    /**
+     * Return the last element of an array or other value.
+     *
+     * @param  mixed    $value
+     *
+     * @return mixed
+     */
+    public static function last ($value)
+    {
+        if ( is_array($value) ) {
+            $n = count($value);
+            return $n == 0 ? null : $value[$n - 1];
+        }
+    }
+
 }
