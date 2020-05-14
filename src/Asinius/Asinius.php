@@ -243,7 +243,7 @@ trait CallerInfo
 {
 
     /**
-     * Returns true if the caller is the same instance or class.
+     * Returns true if the caller matches an object or static class reference.
      *
      * @param   mixed       $reference
      *
@@ -251,6 +251,9 @@ trait CallerInfo
      */
     protected static function _caller_is ($reference)
     {
+        if ( ! is_array($reference) ) {
+            $reference = [$reference];
+        }
         $stack = debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT | DEBUG_BACKTRACE_IGNORE_ARGS, 3);
         //  If there are only two entries in the stack, then the function call
         //  came from application code.
@@ -258,12 +261,10 @@ trait CallerInfo
             return false;
         }
         $caller = array_pop($stack);
-        //  In an instantiated object context, the object reference must match.
-        //  In a static context, the class reference must match.
-        if ( ($caller['type'] == '->' && $caller['object'] == $reference) || ($caller['type'] == '::' && $caller['class'] == __CLASS__) ) {
-            return true;
-        }
-        return false;
+        //  Match the calling class or object against the reference(s).
+        //  Use _caller_is($this) to force the comparison to match the current
+        //  object exactly.
+        return ($caller['type'] == '->' || $caller['type'] == '::') && (in_array($caller['object'], $reference, true) || in_array($caller['class'], $reference, true));
     }
 }
 
@@ -292,7 +293,7 @@ trait DatastreamProperties
 
     /**
      * Return the value of a property. If the property doesn't already exist in
-     * $this->_properties, then a "_get_[property]" function will called, if
+     * $this->_properties, then a "get_[property]" function will called, if
      * available.
      * 
      * @param   string      $property
@@ -333,6 +334,10 @@ trait DatastreamProperties
      *     - The change is coming from a function call in the current object.
      * Otherwise, throw an error.
      *
+     * If a "set_*" function exists for the property, call that instead of
+     * setting it directly, unless it's this object trying to set one of its
+     * own properties.
+     *
      * @param   string      $property
      * @param   mixed       $value
      *
@@ -350,6 +355,9 @@ trait DatastreamProperties
         }
         else if ( $this->_properties['values'][$property]['locked'] && ! static::_caller_is($this) ) {
             throw new \RuntimeException("Can't set " . __CLASS__ . "->\$$property: this property is currently read-only");
+        }
+        else if ( is_callable([$this, "set_$property"]) && ! static::_caller_is($this) ) {
+            return call_user_func([$this, "set_$property"], $value);
         }
         else {
             $this->_properties['values'][$property]['value'] = $value;
@@ -426,5 +434,19 @@ trait DatastreamProperties
     {
         $this->_properties['restrictied'] = false;
     }
+
+}
+
+
+/*******************************************************************************
+*                                                                              *
+*   DatastreamLogging trait                                                    *
+*                                                                              *
+*******************************************************************************/
+
+trait DatastreamLogging
+{
+    //  The DatastreamLogging trait provides all of the code that Datastreams
+    //  need to store, broadcast, and return errors and other messages.
 
 }
