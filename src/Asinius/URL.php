@@ -719,11 +719,11 @@ class URL
 
     //  Sequences of valid characters in different URL components.
     private static $_valid_chars = [
-        'hostname'                      => 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-.',
-        'url'                           => "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~:/?#[]@!$&'()*+,;=%",
+        'hostname'                      => 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-',
+        'url'                           => "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._~:/?#[]@!$&'()*+,;=%-",
         'protocol'                      => 'acefhijlmnoprstvACEFHIJLMNOPRSTV:/',
-        'mail-username'                 => "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~/?#!$&'*+=%!^`{|}",
-        'url-authority'                 => 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~!%',
+        'mail-username'                 => "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.!#$%&'*+/=?^_`{|}~\"(),:;<>@[\] -",
+        'url-authority'                 => 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._~!%-',
         'url-delimiters'                => ':@/?#',
     ];
 
@@ -966,6 +966,93 @@ class URL
     {
         static::$_schemes[$scheme] = $classname;
         static::$_scheme_max_length = max(array_map('strlen', array_keys(static::$_schemes)));
+    }
+
+
+    /**
+     * Extract and return substrings that look like valid email addresses from
+     * a block of text.
+     *
+     * This does NOT aim for perfect RFC 5322 email address parsing. I'm well
+     * aware of the plethora of edge cases that are technically valid and the
+     * super gross regular expressions that attempt it (and still fail).
+     *
+     * This function is designed to find almost any sort of email address you
+     * might see "in the wild" while sifting out stuff that almost looks like
+     * an email address but probably isn't. "Pretty darn good", not "perfect".
+     *
+     * @param  string       $text
+     *
+     * @return array
+     */
+    public static function extract_email_addresses ($text)
+    {
+        $extracted = [];
+        $i = -1;
+        //  Do this in stages. First stage is to do a rough initial sweep and
+        //  grab anything that contains an "@" and a plausible hostname.
+        //  Abandon hope, all ye who gaze upon this.
+        while ( preg_match('/@(?P<hostname>[a-z0-9](?:(?:[a-z0-9-]*|(?<!-)\.(?![-.]))*[a-z0-9]+)?)/i', $text, $matches, PREG_OFFSET_CAPTURE, ++$i) === 1 ) {
+            if ( ! static::has_tld(substr(strrchr($hostname = strtolower($matches['hostname'][0]), '.'), 1)) ) {
+                //  A hostname-looking sequence was found but doesn't have a
+                //  valid TLD.
+                continue;
+            }
+            $i = $matches[0][1];
+            //  Harder: validate the username part.
+            //  This can probably be done with a regex, and then the two regexes
+            //  (local-part and hostname) could be combined, but... ehhhh.
+            //  Parsing quote-quoting and dot-quoting in the local-part is tricky.
+            //  Start by grabbing the last 64 chars before the "@".
+            $j = ($i < 64 ? 0 : $i - 64);
+            $username = strrev(substr($text, $j, ($n = $i - $j)));
+            //  The username is now in reverse character order, so that extraction
+            //  begins from the @ and moves backwards. Find the longest possible
+            //  username that is valid approximately according to rfc.
+            $j = -1;
+            while ( ++$j < $n ) {
+                //  These characters may exist in the username ("local") part
+                //  without quotes.
+                $j += strspn($username, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!#$%&'*+-/=?^_`{|}~", $j);
+                if ( $j == $n ) {
+                    //  Done.
+                    break;
+                }
+                //  Examine the character that broke the run. It must satisfy
+                //  one of the following conditions for matching to continue.
+                switch ($username[$j]) {
+                    case '.':
+                        //  Must not be the first or last character or occur
+                        //  twice in a row outside quotes.
+                        if ( $j != 0 && $j != $n - 1 && $username[$j+1] != '.' ) {
+                            continue 2;
+                        }
+                        break;
+                    case '"':
+                        //  If quotes aren't the first and last characters of
+                        //  the local part, then they must be surrounded by '.'
+                        //  (a "dot-quoted" local part).
+                        if ( $j == 0 ) {
+                            //  Not quite RFC, but allow anything up to the next quote.
+                            if ( ($next_quote = strpos($username, '"', $j+1)) !== false ) {
+                                $j = $next_quote;
+                                continue 2;
+                            }
+                        }
+                        else if ( $username[$j-1] == '.' && ($next_quote = strpos($username, '".', $j+1)) !== false ) {
+                            $j = $next_quote;
+                            continue 2;
+                        }
+                        break;
+                }
+                break;
+            }
+            if ( $j > 0 ) {
+                $username = strrev(substr($username, 0, $j));
+                $extracted[] = "$username@$hostname";
+            }
+        }
+        return array_unique($extracted);
     }
 
 
