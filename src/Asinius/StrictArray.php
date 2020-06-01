@@ -103,15 +103,16 @@ namespace Asinius;
 class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
 {
 
-    protected $_int_keys      = [];
-    protected $_str_keys      = [];
-    protected $_other_keys    = [];
-    protected $_values        = [];
-    protected $_position      = 0;
-    protected $_count         = 0;
-    protected $_next_index    = 0;
-    protected $_next_int_key  = 0;
-    protected $_is_sequential = true;
+    protected $_int_keys        = [];
+    protected $_str_keys        = [];
+    protected $_other_keys      = [];
+    protected $_values          = [];
+    protected $_position        = 0;
+    protected $_count           = 0;
+    protected $_next_index      = 0;
+    protected $_next_int_key    = 0;
+    protected $_is_sequential   = true;
+    protected $_case_sensitive  = true;
 
 
     /**
@@ -159,12 +160,13 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
      * Return the internal index for a key.
      *
      * @param   mixed       $key
+     * @param   boolean     $case_sensitive
      *
      * @internal
      *
      * @return  mixed
      */
-    protected function _find_key ($key)
+    protected function _find_key ($key, $case_sensitive = true)
     {
         if ( $this->_is_sequential ) {
             if ( is_int($key) && $key >= 0 && $key < $this->_count ) {
@@ -176,7 +178,7 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
             $i = array_search($key, $this->_int_keys, true);
         }
         else if ( is_string($key) ) {
-            $i = array_search($key, $this->_str_keys, true);
+            $i = array_search($key, $this->_str_keys, $case_sensitive && $this->_case_sensitive);
         }
         else {
             $i = array_search($key, $this->_other_keys, true);
@@ -391,12 +393,13 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
      * Return true if a given key exists in the StrictArray.
      *
      * @param   mixed       $key
+     * @param   boolean     $case_sensitive
      * 
      * @return  boolean
      */
-    public function offsetExists ($key)
+    public function offsetExists ($key, $case_sensitive = true)
     {
-        return ! is_null($this->_find_key($key));
+        return ! is_null($this->_find_key($key, $case_sensitive));
     }
 
 
@@ -404,13 +407,14 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
      * Return an element, given its key.
      *
      * @param   mixed       $key
+     * @param   boolean     $case_sensitive
      * 
      * @return  mixed
      */
-    public function &offsetGet ($key)
+    public function &offsetGet ($key, $case_sensitive = true)
     {
         //  https://stackoverflow.com/a/51703824
-        $i = $this->_find_key($key);
+        $i = $this->_find_key($key, $case_sensitive);
         if ( is_null($i) ) {
             return $i;
         }
@@ -441,12 +445,13 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
      * Delete an element, given its key.
      *
      * @param   mixed       $key
+     * @param   boolean     $case_sensitive
      *
      * @return  void
      */
-    public function offsetUnset ($key)
+    public function offsetUnset ($key, $case_sensitive = true)
     {
-        if ( is_null($i = $this->_find_key($key)) ) {
+        if ( is_null($i = $this->_find_key($key, $case_sensitive)) ) {
             return;
         }
         if ( $i < $this->_count - 1 && $this->_is_sequential ) {
@@ -757,5 +762,16 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
         return $new;
     }
 
+
+    /**
+     * Make string matching on array keys case-insensitive. I don't recommend
+     * doing this, but here it is anyway.
+     *
+     * @return  void
+     */
+    public function set_case_insensitive ()
+    {
+        $this->_case_sensitive = false;
+    }
 
 }
