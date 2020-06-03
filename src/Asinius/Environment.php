@@ -51,11 +51,15 @@ class Environment
         'can_shell_exec'        => null,
         'safe_mode'             => null,
         'disabled_functions'    => null,
+        'context'               => null,
     ];
 
 
     /**
-     * Provide on-demand access to defined properties.
+     * Provide on-demand access to defined properties. This is structured like
+     * this (instead of standard, traditional public static functions) so that
+     * requests for specific values can be automatically memoized and all
+     * values can easily be returned for debugging purposes in all_properties().
      *
      * @param   string      $function
      * @param   array       $arguments
@@ -96,6 +100,34 @@ class Environment
                 return self::$_properties['disabled_functions'] = array_filter(array_map('trim', explode(',', ini_get('disable_functions'))), function($element){
                     return ! is_string($element) || strlen($element) > 0;
                 });
+            case 'context':
+                //  $cli and $web should -only- contain answers which are certain
+                //  to be correct in all environments. "php-cgi" for example is
+                //  reported to occur in both web requests and cron job invocations
+                //  in some environments, so further detection efforts are required.
+                $cli = ['cli'];
+                $web = ['apache', 'cgi', 'cgi-fcgi', 'cli-server', 'fpm-fcgi'];
+                $context = '';
+                if ( in_array(PHP_SAPI, $cli) ) {
+                    //  It would be nice to do an additional check here, like:
+                    //      (posix_getuid() > 999 || posix_getuid() === 0)
+                    //  ...but this is not universal enough across different
+                    //  operating systems.
+                    $context = 'cli';
+                }
+                else if ( in_array(PHP_SAPI, $web) || isset($_SERVER['HTTP_USER_AGENT']) || isset($_SERVER['REQUEST_METHOD']) ) {
+                    $context = 'web';
+                }
+                else if ( (empty($_SERVER['REMOTE_ADDR']) && count($_SERVER['argv']) > 0) || isset($_ENV['SHELL']) ) {
+                    $context = 'cli';
+                }
+                if ( $context == 'cli' ) {
+                    //  Determine if this is an interactive cli or no.
+                    if ( defined('STDOUT') && posix_isatty(STDOUT) ) {
+                        $context = 'cli-interactive';
+                    }
+                }
+                return self::$_properties['context'] = $context;
         }
     }
 
