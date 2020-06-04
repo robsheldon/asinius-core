@@ -116,19 +116,6 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
 
 
     /**
-     * Returns true if the keys of the input array are 0...N-1.
-     *
-     * @param   array       $array
-     *
-     * @return  boolean
-     */
-    protected static function _values_are_sequential ($array)
-    {
-        return empty($array) || ($array[0] === 0 && $array === range(0, count($array) - 1));
-    }
-
-
-    /**
      * Retrieve keys and values from things that can hold keys and values, in
      * the most efficient manner available.
      * 
@@ -145,12 +132,21 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
         }
         $keys = [];
         $values = [];
-        if ( is_object($object) && $object instanceof \Traversable ) {
-            foreach ($object as $key => $value) {
-                $keys[] = $key;
-                $values[] = $value;
+        if ( is_object($object) ) {
+            if ( is_callable([$object, 'keys']) && is_callable([$object, 'values']) ) {
+                try {
+                    return [$object->keys(), $object->values()];
+                } catch (Exception $e) {
+                    ;
+                }
             }
-            return [$keys, $values];
+            if ( $object instanceof \Traversable ) {
+                foreach ($object as $key => $value) {
+                    $keys[] = $key;
+                    $values[] = $value;
+                }
+                return [$keys, $values];
+            }
         }
         throw new \RuntimeException("Not a traversable object: $object");
     }
@@ -284,14 +280,17 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
      * 
      * @param   array       $keys
      * @param   array       $values
+     * @param   boolean     $recursive
      *
      * @internal
+     *
+     * @throws  \RuntimeException
      * 
      * @return  void
      */
-    protected function _store ($keys, $values)
+    protected function _store ($keys, $values, $recursive = false)
     {
-        if ( static::_values_are_sequential($keys) ) {
+        if ( ! empty($keys) && $keys[0] === 0 && $keys === range(0, count($keys) - 1) ) {
             //  Treat input arrays with sequential keys as though there are no
             //  keys present.
             $keys = [];
@@ -328,6 +327,44 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
             }
             $index = $this->_find_key($keys[$i]);
             if ( ! is_null($index) ) {
+                //  This next section will attempt to merge different combinations
+                //  of array-like values. If it can't, it will simply overwrite
+                //  the specified value. In some cases a stored array-like value
+                //  may be converted to a StrictArray.
+                if ( is_array($values[$i]) ) {
+                    if ( is_array($this->_values[$index]) ) {
+                        $this->_values[$index] = array_replace_recursive($this->_values[$index], $values[$i]);
+                        continue;
+                    }
+                    if ( is_object($this->_values[$index]) ) {
+                        if ( is_a($this->_values[$index], '\Asinius\StrictArray') ) {
+                            $this->_values[$index]->merge_recursive($values[$i]);
+                            continue;
+                        }
+                        try {
+                            $keys_and_values = static::_extract($this->_values[$index]);
+                            $new = new \Asinius\StrictArray();
+                            $new->combine($keys_and_values[0], $keys_and_values[1]);
+                            $new->merge_recursive($values[$i]);
+                            $this->_values[$index] = $new;
+                            continue;
+                        } catch (Exception $e) {
+                            ;
+                        }
+                    }
+                }
+                if ( is_object($values[$i]) && is_a($values[$i], '\Asinius\StrictArray') ) {
+                    if ( is_object($this->_values[$index]) ) {
+                        $this->_values[$index]->merge_recursive($values[$i]);
+                        continue;
+                    }
+                    if ( is_array($this->_values[$index]) ) {
+                        $new = new \Asinius\StrictArray($this->_values[$index]);
+                        $new->merge_recursive($values[$i]);
+                        continue;
+                    }
+                }
+                //  This is the fall-condition, where the existing value gets overwritten.
                 $this->_values[$index] = $values[$i];
             }
             else {
@@ -720,6 +757,25 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
                 throw new \RuntimeException("Can't merge this");
             }
             $this->_store($keys, $values);
+        }
+    }
+
+
+    /**
+     * Recursively merge one or more arrays into the current StrictArray.
+     * This behaves like PHP's array_replace_recursive() function, in which
+     * conflicting scalar values will be overwritten. If both values for a given
+     * key are arrays or StrictArrays, then their values will be merged.
+     */
+    public function merge_recursive (...$arrays)
+    {
+        foreach ($arrays as $array) {
+            try {
+                list($keys, $values) = static::_extract($array);
+            } catch (Exception $e) {
+                throw new \RuntimeException("Can't recursively merge this");
+            }
+            $this->_store($keys, $values, true);
         }
     }
 

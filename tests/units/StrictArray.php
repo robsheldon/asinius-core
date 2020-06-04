@@ -414,6 +414,27 @@ class StrictArray extends atoum\test
 
 
     /**
+     * Recursively merge multiple other arrays into an existing array and ensure
+     * that the correct keys and values are generated.
+     */
+    public function testRecursiveMerge ()
+    {
+        $array = new \Asinius\StrictArray($this->_inputs['simple_hash']);
+        $initial = ['foo' => 'bar'];
+        $array['a'] = $initial;
+        $this->array($array['a'])->isEqualTo($initial);
+        $second = ['a' => ['bar', 'baz']];
+        $array->merge_recursive($second);
+        $this->array($array['a'])->isEqualTo(array_replace_recursive($initial, $second['a']));
+        $third = ['a' => ['foo' => 'baz']];
+        $array->merge_recursive($third);
+        $this->array($array['a'])->isEqualTo(array_replace_recursive($initial, $second['a'], $third['a']));
+        //  TODO: This needs a lot more tests written for it but it's sort of
+        //  breaking my brain tonight.
+    }
+
+
+    /**
      * Rip through the preg_* functions in the class.
      */
     public function testPregSearch ()
