@@ -264,7 +264,7 @@ trait CallerInfo
         //  Match the calling class or object against the reference(s).
         //  Use _caller_is($this) to force the comparison to match the current
         //  object exactly.
-        return ($caller['type'] == '->' || $caller['type'] == '::') && (in_array($caller['object'], $reference, true) || in_array($caller['class'], $reference, true));
+        return ($caller['type'] == '->' || $caller['type'] == '::') && ((isset($caller['object']) && in_array($caller['object'], $reference, true)) || (isset($caller['class']) && in_array($caller['class'], $reference, true)));
     }
 }
 
