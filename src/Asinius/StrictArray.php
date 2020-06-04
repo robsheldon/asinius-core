@@ -766,6 +766,10 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
      * This behaves like PHP's array_replace_recursive() function, in which
      * conflicting scalar values will be overwritten. If both values for a given
      * key are arrays or StrictArrays, then their values will be merged.
+     *
+     * @param   mixed       $arrays
+     *
+     * @return void
      */
     public function merge_recursive (...$arrays)
     {
