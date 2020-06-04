@@ -107,7 +107,7 @@ class Environment
                 //  in some environments, so further detection efforts are required.
                 $cli = ['cli'];
                 $web = ['apache', 'cgi', 'cgi-fcgi', 'cli-server', 'fpm-fcgi'];
-                $context = '';
+                $context = 'unknown';
                 if ( in_array(PHP_SAPI, $cli) ) {
                     //  It would be nice to do an additional check here, like:
                     //      (posix_getuid() > 999 || posix_getuid() === 0)
