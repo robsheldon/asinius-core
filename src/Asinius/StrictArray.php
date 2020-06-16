@@ -174,7 +174,21 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
             $i = array_search($key, $this->_int_keys, true);
         }
         else if ( is_string($key) ) {
-            $i = array_search($key, $this->_str_keys, $case_sensitive && $this->_case_sensitive);
+            if ( $case_sensitive && $this->_case_sensitive ) {
+                $i = array_search($key, $this->_str_keys, true);
+            }
+            else {
+                //  Barf.
+                $i = count($this->_str_keys);
+                while ($i--) {
+                    if ( strcasecmp($key, $this->_str_keys[$i]) === 0 ) {
+                        break;
+                    }
+                }
+                if ( $i < 0 ) {
+                    $i = false;
+                }
+            }
         }
         else {
             $i = array_search($key, $this->_other_keys, true);
@@ -327,6 +341,10 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
             }
             $index = $this->_find_key($keys[$i]);
             if ( ! is_null($index) ) {
+                if ( ! $recursive ) {
+                    $this->_values[$index] = $values[$i];
+                    continue;
+                }
                 //  This next section will attempt to merge different combinations
                 //  of array-like values. If it can't, it will simply overwrite
                 //  the specified value. In some cases a stored array-like value
@@ -364,7 +382,7 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
                         continue;
                     }
                 }
-                //  This is the fall-condition, where the existing value gets overwritten.
+                //  This is the fall-thru condition, where the existing value gets overwritten.
                 $this->_values[$index] = $values[$i];
             }
             else {
