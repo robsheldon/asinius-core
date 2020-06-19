@@ -950,6 +950,12 @@ class URL
         if ( class_exists($handler, true) ) {
             return $handler::open($url);
         }
+        //  Need to hide the password part of a URL before barfing up this
+        //  error message.
+        $url = static::parse($url);
+        if ( isset($url->password) && $url->password != '' ) {
+            $url->password = '{password}';
+        }
         throw new \RuntimeException("$handler is registered as the protocol handler for $url, but the class can not be found");
     }
 
@@ -1193,13 +1199,14 @@ class URL
             $scheme = $this->_components['scheme'] . ':';
             switch ($this->_components['scheme']) {
                 case 'http':
+                case 'imap':
                     $scheme .= '//';
                     break;
             }
         }
         $username = '';
         if ( ! empty($this->_components['username']) ) {
-            $username = $this->_components['username'];
+            $username = '"' . $this->_components['username'] . '"';
         }
         $password = '';
         if ( ! empty($this->_components['password']) ) {
