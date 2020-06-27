@@ -47,6 +47,7 @@ namespace Asinius;
 defined('EUNDEF')    or define('EUNDEF', -1);       //  Non-specific; try to avoid
 defined('ENOENT')    or define('ENOENT', 2);        //  File not found
 defined('EACCESS')   or define('EACCESS', 13);      //  Permission/access denied
+defined('EEXIST')    or define('EEXIST', 17);       //  File exists
 defined('EINVAL')    or define('EINVAL', 22);       //  Invalid function argument
 defined('ENOSYS')    or define('ENOSYS', 38);       //  Function not implemented.
 defined('ENODATA')   or define('ENODATA', 61);      //  No data available
