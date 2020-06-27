@@ -136,7 +136,7 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
             if ( is_callable([$object, 'keys']) && is_callable([$object, 'values']) ) {
                 try {
                     return [$object->keys(), $object->values()];
-                } catch (Exception $e) {
+                } catch (\Exception $e) {
                     ;
                 }
             }
@@ -366,7 +366,7 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
                             $new->merge_recursive($values[$i]);
                             $this->_values[$index] = $new;
                             continue;
-                        } catch (Exception $e) {
+                        } catch (\Exception $e) {
                             ;
                         }
                     }
@@ -794,7 +794,7 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
         foreach ($arrays as $array) {
             try {
                 list($keys, $values) = static::_extract($array);
-            } catch (Exception $e) {
+            } catch (\Exception $e) {
                 throw new \RuntimeException("Can't recursively merge this");
             }
             $this->_store($keys, $values, true);

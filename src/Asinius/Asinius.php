@@ -166,7 +166,7 @@ class Asinius
                     //  case that a file belonging to this library, matching
                     //  the class path we're looking for, exists but is not
                     //  readable.
-                    throw new RuntimeException("File not accessible: $path");
+                    throw new \RuntimeException("File not accessible: $path");
                 }
                 //  A closure is used here to prevent conflicts and access to
                 //  "self" or "$this".

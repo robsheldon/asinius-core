@@ -67,10 +67,10 @@ class Network
         if ( \Asinius\Environment::can_exec() ) {
             switch (\Asinius\Environment::os_type()) {
                 case 'Windows':
-                    $ping_cmd = sprintf('ping -n 1 -w %d %s', $timeout * 1000, $address);
+                    $ping_cmd = sprintf('ping -n 1 -w %d %s', $max_timeout * 1000, $address);
                     break;
                 case 'MacOS':
-                    $ping_cmd = sprintf('ping -n -c 1 -t %s %s', $timeout, $address);
+                    $ping_cmd = sprintf('ping -n -c 1 -t %s %s', $max_timeout, $address);
                     break;
                 case 'Linux':
                     $ping_cmd = '';

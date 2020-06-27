@@ -16,6 +16,7 @@
         "optimize-autoloader": true
     },
     "require-dev": {
-        "atoum/atoum": "^3.4"
+        "atoum/atoum": "^3.4",
+        "phpstan/phpstan": "^0.12.31"
     }
 }
