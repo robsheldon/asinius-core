@@ -113,6 +113,7 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
     protected $_next_int_key    = 0;
     protected $_is_sequential   = true;
     protected $_case_sensitive  = true;
+    protected $_locked          = false;
 
 
     /**
@@ -304,6 +305,9 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
      */
     protected function _store ($keys, $values, $recursive = false)
     {
+        if ( $this->_locked !== false ) {
+            throw new \RuntimeException('This object is currently read-only', EACCESS);
+        }
         if ( ! empty($keys) && $keys[0] === 0 && $keys === range(0, count($keys) - 1) ) {
             //  Treat input arrays with sequential keys as though there are no
             //  keys present.
@@ -506,6 +510,9 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
      */
     public function offsetUnset ($key, $case_sensitive = true)
     {
+        if ( $this->_locked !== false ) {
+            throw new \RuntimeException('This object is currently read-only', EACCESS);
+        }
         if ( is_null($i = $this->_find_key($key, $case_sensitive)) ) {
             return;
         }
@@ -717,6 +724,9 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
      */
     public function pop ()
     {
+        if ( $this->_locked !== false ) {
+            throw new \RuntimeException('This object is currently read-only', EACCESS);
+        }
         if ( $this->_count < 1 ) {
             return null;
         }
@@ -738,20 +748,23 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
      */
     public function combine ($keys, $values)
     {
+        if ( $this->_locked !== false ) {
+            throw new \RuntimeException('This object is currently read-only', EACCESS);
+        }
         try {
             list($null, $keys) = static::_extract($keys);
         }
         catch (\Exception $e) {
-            throw new \RuntimeException("Can't iterate over these keys: $keys");
+            throw new \RuntimeException("Can't iterate over these keys: $keys", EINVAL);
         }
         try {
             list($null, $values) = static::_extract($values);
         }
         catch (\Exception $e) {
-            throw new \RuntimeException("Can't iterate over these values: $values");
+            throw new \RuntimeException("Can't iterate over these values: $values", EINVAL);
         }
         if ( count($keys) !== count($values) ) {
-            throw new \RuntimeException("Can't append these keys and values: the counts don't match");
+            throw new \RuntimeException("Can't append these keys and values: the counts don't match", EINVAL);
         }
         $this->_store($keys, $values);
     }
@@ -763,16 +776,21 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
      *
      * @param   mixed       $arrays
      *
+     * @throws  \RuntimeException
+     *
      * @return  void
      */
     public function merge (...$arrays)
     {
+        if ( $this->_locked !== false ) {
+            throw new \RuntimeException('This object is currently read-only', EACCESS);
+        }
         foreach ($arrays as $array) {
             try {
                 list($keys, $values) = static::_extract($array);
             }
             catch (\Exception $e) {
-                throw new \RuntimeException("Can't merge this");
+                throw new \RuntimeException("Can't merge this", EINVAL);
             }
             $this->_store($keys, $values);
         }
@@ -787,15 +805,20 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
      *
      * @param   mixed       $arrays
      *
-     * @return void
+     * @throws  \RuntimeException
+     *
+     * @return  void
      */
     public function merge_recursive (...$arrays)
     {
+        if ( $this->_locked !== false ) {
+            throw new \RuntimeException('This object is currently read-only', EACCESS);
+        }
         foreach ($arrays as $array) {
             try {
                 list($keys, $values) = static::_extract($array);
             } catch (\Exception $e) {
-                throw new \RuntimeException("Can't recursively merge this");
+                throw new \RuntimeException("Can't recursively merge this", EINVAL);
             }
             $this->_store($keys, $values, true);
         }
@@ -852,4 +875,44 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
         $this->_case_sensitive = false;
     }
 
+
+    /**
+     * Make this object read-only, with an optional key that must be provided
+     * to unlock it.  If the key is blank, the StrictArray can be unlocked by
+     * any code.
+     *
+     * Returns true if successfully locked, false if it was already locked or
+     * some other code asynchronously locked it.
+     *
+     * @param   mixed       $key
+     *
+     * @return  boolean
+     */
+    public function lock ($key = true)
+    {
+        if ( $this->_locked === false ) {
+            return ($this->_locked = $key) === $key;
+        }
+        return false;
+    }
+
+
+    /**
+     * Unlock this object, making it writable. If a key was provided in lock(),
+     * then it is required in unlock().
+     *
+     * Returns true if successfully unlocked, false otherwise.
+     *
+     * @param   mixed       $key
+     *
+     * @return  boolean
+     */
+    public function unlock ($key = true)
+    {
+        if ( $this->_locked !== false && $this->_locked === $key ) {
+            $this->_locked = false;
+            return true;
+        }
+        return false;
+    }
 }
