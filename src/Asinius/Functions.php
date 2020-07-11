@@ -202,6 +202,9 @@ class Functions
     {
         switch (true) {
             case (is_string($thing)):
+                if ( strlen($thing) > 50 ) {
+                    $thing = substr($thing, 0, 50) . '...';
+                }
                 return '"' . static::escape_str($thing) . '"';
             case (is_int($thing)):
                 return "int($thing)";
