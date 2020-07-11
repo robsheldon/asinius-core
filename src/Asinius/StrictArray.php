@@ -921,4 +921,35 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
         }
         return false;
     }
+
+
+    /**
+     * Return a string representation of this object.
+     *
+     * @return  string
+     */
+    public function __toString ()
+    {
+        $values = [];
+        $i = 0;
+        $n = 0;
+        if ( $this->_is_sequential ) {
+            while ( $i < $this->_count && $n < 235 ) {
+                $element = \Asinius\Functions::to_str($this->_values[$i]);
+                $n += strlen($element);
+                $values[] = $element;
+                $i++;
+            }
+        }
+        else {
+            while ( $i < $this->_count && $n < 235 ) {
+                $element = \Asinius\Functions::to_str($this->_get_key_for_index($i)) . ' => ' . \Asinius\Functions::to_str($this->_values[$i]);
+                $n += strlen($element);
+                $values[] = $element;
+                $i++;
+            }
+        }
+        return __CLASS__ . '(' . implode(', ', $values) . ')';
+    }
+
 }
