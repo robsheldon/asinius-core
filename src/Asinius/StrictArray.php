@@ -477,7 +477,13 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
         if ( is_null($i) ) {
             return $i;
         }
-        return $this->_values[$i];
+        if ( $this->_locked === false ) {
+            return $this->_values[$i];
+        }
+        //  This funky construction is used here to prevent an application
+        //  from changing referenced values in read-only objects.
+        $return = new \Asinius\StrictArray($this->_values[$i]);
+        return $return;
     }
 
 
