@@ -216,13 +216,35 @@ class Functions
             case (is_object($thing)):
                 return 'object(' . get_class($thing) . ')';
             case (is_array($thing)):
-                $values = array_map(function($element){
-                    return \Asinius\Functions::to_str($element);
-                }, $thing);
+                if ( static::is_linear_array($thing) ) {
+                    $values = array_map(function($element){
+                        return \Asinius\Functions::to_str($element);
+                    }, $thing);
+                }
+                else {
+                    $values = array_map(function($key, $value){
+                        return \Asinius\Functions::to_str($key) . ' => ' . \Asinius\Functions::to_str($value);
+                    }, array_keys($thing), array_values($thing));
+                }
                 return '[' . implode(', ', $values) . ']';
             default:
                 return '(' . gettype($thing) . ')';
         }
+    }
+
+
+    /**
+     * Return true if an array's keys are sequential integers starting at 0,
+     * false otherwise.
+     *
+     * @param   array       $array
+     *
+     * @return  boolean
+     */
+    public static function is_linear_array ($array)
+    {
+        $keys = array_keys($array);
+        return count($keys) == 0 || ($keys[0] == 0 && $keys == range(0, count($keys)-1));
     }
 
 
