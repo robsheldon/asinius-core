@@ -50,7 +50,8 @@ namespace Asinius;
 interface Datastream
 {
 
-    const   STATUS_READY    =  1;
+    const   STATUS_READY    =  3;
+    const   STATUS_UNOPENED =  1;
     const   STATUS_ERROR    =  0;
     const   STATUS_CLOSED   = -1;
 
