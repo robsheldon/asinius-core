@@ -50,9 +50,10 @@ defined('EACCESS')   or define('EACCESS', 13);      //  Permission/access denied
 defined('EEXIST')    or define('EEXIST', 17);       //  File exists
 defined('ENOTDIR')   or define('ENOTDIR', 20);      //  Not a directory
 defined('EINVAL')    or define('EINVAL', 22);       //  Invalid function argument
-defined('ENOSYS')    or define('ENOSYS', 38);       //  Function not implemented.
+defined('ENOSYS')    or define('ENOSYS', 38);       //  Function not implemented
 defined('ENODATA')   or define('ENODATA', 61);      //  No data available
 defined('EFTYPE')    or define('EFTYPE', 79);       //  Wrong file type
+defined('ENOTCONN')  or define('ENOTCONN', 107);    //  Endpoint not connected
 //  Custom error conditions.
 defined('EPARSE')    or define('EPARSE', 201);      //  Parse error
 defined('ENOTFILE')  or define('ENOTFILE', 202);    //  Not a regular file
