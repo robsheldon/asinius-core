@@ -50,10 +50,22 @@ namespace Asinius;
 interface Datastream
 {
 
-    const   STATUS_READY    =  3;
-    const   STATUS_UNOPENED =  1;
-    const   STATUS_ERROR    =  0;
-    const   STATUS_CLOSED   = -1;
+    //  Stream types.
+    const   STREAM_GENERIC      = 1;
+    const   STREAM_BASIC        = 2;
+    const   STREAM_UNIX         = 4;
+    const   STREAM_PIPE         = 8;
+    const   STREAM_FILE         = 16;
+    const   STREAM_TCP          = 32;
+    const   STREAM_TYPEMASK     = 0xff;
+
+    //  Stream states.
+    const   STREAM_UNOPENED     = 0;
+    const   STREAM_ERROR        = 256;
+    const   STREAM_LISTENING    = 512;
+    const   STREAM_CONNECTED    = 1024;
+    const   STREAM_CLOSED       = 2048;
+    const   STREAM_STATEMASK    = 0xff00;
 
     /**
      * Datastreams are an abstraction for some data endpoint.
