@@ -57,6 +57,8 @@ interface Datastream
     const   STREAM_PIPE         = 8;
     const   STREAM_FILE         = 16;
     const   STREAM_TCP          = 32;
+    const   STREAM_SOCKET       = 64;
+    const   STREAM_UNSUPPORTED  = 128;
     const   STREAM_TYPEMASK     = 0xff;
 
     //  Stream states.
