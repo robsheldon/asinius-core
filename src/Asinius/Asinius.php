@@ -44,20 +44,21 @@ namespace Asinius;
 //  Error codes familiar to C programmers.
 //  (from https://web.archive.org/web/20180731183139/http://www.virtsync.com/c-error-codes-include-errno)
 
-defined('EUNDEF')    or define('EUNDEF', -1);       //  Non-specific; try to avoid
-defined('ENOENT')    or define('ENOENT', 2);        //  File not found
-defined('EACCESS')   or define('EACCESS', 13);      //  Permission/access denied
-defined('EEXIST')    or define('EEXIST', 17);       //  File exists
-defined('ENOTDIR')   or define('ENOTDIR', 20);      //  Not a directory
-defined('EINVAL')    or define('EINVAL', 22);       //  Invalid function argument
-defined('ENOSYS')    or define('ENOSYS', 38);       //  Function not implemented
-defined('ENODATA')   or define('ENODATA', 61);      //  No data available
-defined('EFTYPE')    or define('EFTYPE', 79);       //  Wrong file type
-defined('ENOTCONN')  or define('ENOTCONN', 107);    //  Endpoint not connected
+defined('EUNDEF')       or define('EUNDEF', -1);       //  Non-specific; try to avoid
+defined('ENOENT')       or define('ENOENT', 2);        //  File not found
+defined('EWOULDBLOCK')  or define('EWOULDBLOCK', 11);  //  Operation would block
+defined('EACCESS')      or define('EACCESS', 13);      //  Permission/access denied
+defined('EEXIST')       or define('EEXIST', 17);       //  File exists
+defined('ENOTDIR')      or define('ENOTDIR', 20);      //  Not a directory
+defined('EINVAL')       or define('EINVAL', 22);       //  Invalid function argument
+defined('ENOSYS')       or define('ENOSYS', 38);       //  Function not implemented
+defined('ENODATA')      or define('ENODATA', 61);      //  No data available
+defined('EFTYPE')       or define('EFTYPE', 79);       //  Wrong file type
+defined('ENOTCONN')     or define('ENOTCONN', 107);    //  Endpoint not connected
 //  Custom error conditions.
-defined('EPARSE')    or define('EPARSE', 201);      //  Parse error
-defined('ENOTFILE')  or define('ENOTFILE', 202);    //  Not a regular file
-defined('ENOCONFIG') or define('ENOCONFIG', 254);   //  Not configured
+defined('EPARSE')       or define('EPARSE', 201);      //  Parse error
+defined('ENOTFILE')     or define('ENOTFILE', 202);    //  Not a regular file
+defined('ENOCONFIG')    or define('ENOCONFIG', 254);   //  Not configured
 
 
 /*******************************************************************************
