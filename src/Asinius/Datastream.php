@@ -51,23 +51,36 @@ interface Datastream
 {
 
     //  Stream types.
-    const   STREAM_GENERIC      = 1;
-    const   STREAM_BASIC        = 2;
-    const   STREAM_UNIX         = 4;
-    const   STREAM_PIPE         = 8;
-    const   STREAM_FILE         = 16;
-    const   STREAM_TCP          = 32;
-    const   STREAM_SOCKET       = 64;
-    const   STREAM_UNSUPPORTED  = 128;
-    const   STREAM_TYPEMASK     = 0xff;
+    const   STREAM_GENERIC          = 1;
+    const   STREAM_BASIC            = 2;
+    const   STREAM_UNIX             = 4;
+    const   STREAM_PIPE             = 8;
+    const   STREAM_FILE             = 16;
+    const   STREAM_TCP              = 32;
+    const   STREAM_SOCKET           = 64;
+    const   STREAM_UNSUPPORTED      = 128;
+    const   STREAM_TYPEMASK         = 0xff;
 
     //  Stream states.
-    const   STREAM_UNOPENED     = 0;
-    const   STREAM_ERROR        = 256;
-    const   STREAM_LISTENING    = 512;
-    const   STREAM_CONNECTED    = 1024;
-    const   STREAM_CLOSED       = 2048;
-    const   STREAM_STATEMASK    = 0xff00;
+    const   STREAM_UNOPENED         = 256;
+    const   STREAM_ERROR            = 512;
+    const   STREAM_LISTENING        = 1024;
+    const   STREAM_CONNECTED        = 2048;
+    const   STREAM_CLOSED           = 4096;
+    const   STREAM_READABLE         = 8192;
+    const   STREAM_WRITABLE         = 16384;
+    const   STREAM_STATEMASK        = 0xff00;
+
+    //  Variable timeout.
+    const   STREAM_VARY_TIMEOUT     = 65536;
+
+    //  I/O load and stream sleep magic numbers.
+    const   IO_LOAD_0               = -PHP_INT_MAX>>1<<1;
+    const   IO_LOAD_LOW             = (-PHP_INT_MAX>>1 ^ -PHP_INT_MAX)>>5;
+    const   IO_LOAD_HIGH            = 1<<5;
+    const   STREAM_SLEEP_MIN        = 0b00000000000000011111;
+    const   STREAM_SLEEP_MAX        = 0b11111000000000000000;
+
 
     /**
      * Datastreams are an abstraction for some data endpoint.
@@ -118,11 +131,6 @@ interface Datastream
      * @return  boolean
      */
     public function ready ();
-
-    /**
-     * Datastreams must maintain an error log and provide read-only access to it.
-     */
-    public function errors ();
 
     /**
      * Datastreams must implement a search() function that allows the application
