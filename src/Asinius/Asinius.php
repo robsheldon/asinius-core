@@ -58,6 +58,7 @@ defined('ENOTCONN')     or define('ENOTCONN', 107);    //  Endpoint not connecte
 //  Custom error conditions.
 defined('EPARSE')       or define('EPARSE', 201);      //  Parse error
 defined('ENOTFILE')     or define('ENOTFILE', 202);    //  Not a regular file
+defined('EHALTED')      or define('EHALTED', 203);     //  Can't execute because of a previous error
 defined('ENOCONFIG')    or define('ENOCONFIG', 254);   //  Not configured
 
 
