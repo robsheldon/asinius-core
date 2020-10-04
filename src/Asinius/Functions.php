@@ -237,6 +237,19 @@ class Functions
 
 
     /**
+     * Convert a UTF-8 string into an array of individual characters.
+     *
+     * @param   string      $string
+     *
+     * @return  array
+     */
+    public static function utf8_str_split ($string)
+    {
+        return preg_split('//u', $string, null, PREG_SPLIT_NO_EMPTY);
+    }
+
+
+    /**
      * Return true if an array's keys are sequential integers starting at 0,
      * false otherwise.
      *
