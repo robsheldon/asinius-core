@@ -86,7 +86,7 @@ class ResourceDatastream implements Datastream
      */
     public static function get_stream_type ($resource)
     {
-        if ( $resource === STDIN || $resource === STDOUT || $resource === STDERR ) {
+        if ( (defined('STDIN') && $resource === STDIN) || (defined('STDOUT') && $resource === STDOUT) || (defined('STDERR') && $resource === STDERR) ) {
             return Datastream::STREAM_PIPE;
         }
         switch (strtolower(@get_resource_type($resource))) {
@@ -421,41 +421,66 @@ class ResourceDatastream implements Datastream
         $this->_install_wrappers();
         if ( is_string($resource) ) {
             $this->_name = $resource;
-            $pipes = ['STDIN' => STDIN, 'STDOUT' => STDOUT, 'STDERR' => STDERR];
-            if ( isset($pipes[$resource]) ) {
-                $this->_connection = $pipes[$resource];
-                $this->_type = Datastream::STREAM_PIPE;
+            if ( ($resource === 'STDIN' || $resource === 'STDOUT' || $resource === 'STDERR') && ! defined($resource) ) {
+                //  This pipe needs to be opened, if possible, before continuing.
+                switch ($resource) {
+                    case 'STDIN':
+                        $pipe = fopen('php://stdin', 'r');
+                        if ( $pipe === false ) {
+                            throw new \RuntimeException("Can't open $resource for reading in this environment");
+                        }
+                        break;
+                    case 'STDOUT':
+                    case 'STDERR':
+                        $pipe = fopen(sprintf('php://%s', strtolower($resource)), 'a');
+                        if ( $pipe === false ) {
+                            throw new \RuntimeException("Can't open $resource for writing in this environment");
+                        }
+                       break;
+                    default:
+                        throw new \RuntimeException('Reached impossible code path');
+                }
+                //  Create the constant to be used everywhere else.
+                define($resource, $pipe);
             }
-            else {
-                //  This may be a path to a file. There are a few rules that
-                //  must be followed to prevent unsafe access to an application's
-                //  own directory:
-                $this->_path = @realpath($resource);
-                if ( $this->_path === false ) {
-                    //  1. If the file doesn't already exist, then the parent
-                    //  directory must exist and must be writable.
-                    $parent_dir = @realpath(dirname($resource));
-                    if ( $parent_dir === false ) {
-                        throw new \RuntimeException("File at $resource doesn't exist and it can't be created because the parent directory doesn't exist", ENOENT);
+            switch ($resource) {
+                case 'STDIN':
+                case 'STDOUT':
+                case 'STDERR':
+                    $pipes = ['STDIN' => STDIN, 'STDOUT' => STDOUT, 'STDERR' => STDERR];
+                    $this->_connection = $pipes[$resource];
+                    $this->_type = Datastream::STREAM_PIPE;
+                    break;
+                default:
+                    //  This may be a path to a file. There are a few rules that
+                    //  must be followed to prevent unsafe access to an application's
+                    //  own directory:
+                    $this->_path = @realpath($resource);
+                    if ( $this->_path === false ) {
+                        //  1. If the file doesn't already exist, then the parent
+                        //  directory must exist and must be writable.
+                        $parent_dir = @realpath(dirname($resource));
+                        if ( $parent_dir === false ) {
+                            throw new \RuntimeException("File at $resource doesn't exist and it can't be created because the parent directory doesn't exist", ENOENT);
+                        }
+                        if ( ! is_writable($parent_dir) ) {
+                            throw new \RuntimeException("File at $resource doesn't exist and it can't be created because the parent directory isn't writable", EACCESS);
+                        }
+                        //  Parent directory exists and is writable, continue.
+                        $this->_path = implode(DIRECTORY_SEPARATOR, [$parent_dir, basename($resource)]);
                     }
-                    if ( ! is_writable($parent_dir) ) {
-                        throw new \RuntimeException("File at $resource doesn't exist and it can't be created because the parent directory isn't writable", EACCESS);
+                    if ( strpos($this->_path, getcwd()) === 0 ) {
+                        //  2. Paths can not reference a location in the application's
+                        //  current directory. It's not safe for a library to implicitly
+                        //  enable access to files under the current directory because
+                        //  there's no way to know if the input is from a trusted or
+                        //  untrusted source. If applications want to use this class
+                        //  to access files in their own directory, just fopen() the
+                        //  path first and pass the resource handle instead.
+                        throw new \RuntimeException("The application tried to access a file in its own directory. Wait, that's illegal", EACCESS);
                     }
-                    //  Parent directory exists and is writable, continue.
-                    $this->_path = implode(DIRECTORY_SEPARATOR, [$parent_dir, basename($resource)]);
-                }
-                if ( strpos($this->_path, getcwd()) === 0 ) {
-                    //  2. Paths can not reference a location in the application's
-                    //  current directory. It's not safe for a library to implicitly
-                    //  enable access to files under the current directory because
-                    //  there's no way to know if the input is from a trusted or
-                    //  untrusted source. If applications want to use this class
-                    //  to access files in their own directory, just fopen() the
-                    //  path first and pass the resource handle instead.
-                    throw new \RuntimeException("The application tried to access a file in its own directory. Wait, that's illegal", EACCESS);
-                }
-                $this->_type = Datastream::STREAM_FILE;
-                $this->_state |= (Datastream::STREAM_READABLE | Datastream::STREAM_WRITABLE);
+                    $this->_type = Datastream::STREAM_FILE;
+                    $this->_state |= (Datastream::STREAM_READABLE | Datastream::STREAM_WRITABLE);
             }
         }
         else if ( @is_resource($resource) ) {
