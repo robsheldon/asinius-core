@@ -131,8 +131,6 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
         if ( is_array($object) ) {
             return [array_keys($object), array_values($object)];
         }
-        $keys = [];
-        $values = [];
         if ( is_object($object) ) {
             if ( is_callable([$object, 'keys']) && is_callable([$object, 'values']) ) {
                 try {
@@ -142,6 +140,8 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
                 }
             }
             if ( $object instanceof \Traversable ) {
+                $keys = [];
+                $values = [];
                 foreach ($object as $key => $value) {
                     $keys[] = $key;
                     $values[] = $value;
@@ -690,8 +690,11 @@ class StrictArray implements \ArrayAccess, \Countable, \SeekableIterator
      */
     public function keys ()
     {
+        if ( $this->_count < 1 ) {
+            return [];
+        }
         if ( $this->_is_sequential ) {
-            return range(0, $this->_count -1);
+            return range(0, $this->_count - 1);
         }
         $keys = $this->_int_keys + $this->_str_keys + $this->_other_keys;
         ksort($keys);
