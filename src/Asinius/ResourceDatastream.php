@@ -469,14 +469,16 @@ class ResourceDatastream implements Datastream
                         //  Parent directory exists and is writable, continue.
                         $this->_path = implode(DIRECTORY_SEPARATOR, [$parent_dir, basename($resource)]);
                     }
-                    if ( strpos($this->_path, getcwd()) === 0 ) {
-                        //  2. Paths can not reference a location in the application's
-                        //  current directory. It's not safe for a library to implicitly
-                        //  enable access to files under the current directory because
-                        //  there's no way to know if the input is from a trusted or
-                        //  untrusted source. If applications want to use this class
-                        //  to access files in their own directory, just fopen() the
-                        //  path first and pass the resource handle instead.
+                    if ( strpos($this->_path, getcwd()) === 0 && $resource !== $this->_path ) {
+                        //  2. Paths can not indirectly reference a location in
+                        //  the application's current directory. It's not safe
+                        //  for a library to implicitly enable access to files
+                        //  under the current directory because there's no way
+                        //  to know if the input is from a trusted or untrusted
+                        //  source. If applications want to use this class
+                        //  to access files in their own directory, either use
+                        //  an absolute path or fopen() the path first and pass
+                        //  the resource handle instead.
                         throw new \RuntimeException("The application tried to access a file in its own directory. Wait, that's illegal", EACCESS);
                     }
                     $this->_type = Datastream::STREAM_FILE;
