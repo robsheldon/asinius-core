@@ -74,6 +74,9 @@ interface Datastream
     //  Variable timeout.
     const   STREAM_VARY_TIMEOUT     = 65536;
 
+    //  Buffer size, set to the size of a typical OS memory page by default.
+    const   STREAM_BUFFER_SIZE      = 4096;
+
     //  I/O load and stream sleep magic numbers.
     const   IO_LOAD_0               = -PHP_INT_MAX>>1<<1;
     const   IO_LOAD_LOW             = (-PHP_INT_MAX>>1 ^ -PHP_INT_MAX)>>5;
