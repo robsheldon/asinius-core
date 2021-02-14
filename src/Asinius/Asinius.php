@@ -231,7 +231,14 @@ class Asinius
         if ( empty($child_class) ) {
             $child_class = 'Object';
         }
-        throw new \RuntimeException("$child_class must be instantiated by the $class class");
+        if ( count($classes) < 2 ) {
+            $class = $classes[0];
+            throw new \RuntimeException("$child_class must be instantiated by the $class class");
+        }
+        else {
+            $classes = implode(', ', $classes);
+            throw new \RuntimeException("$child_class must be instantiated by one of the following classes: $classes");
+        }
     }
 
 
