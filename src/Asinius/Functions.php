@@ -160,6 +160,23 @@ class Functions
 
 
     /**
+     * Return the number of matching characters at the start of $string1 and
+     * $string2. Example: str_matchlen('abcdef', 'abcefg') returns 3.
+     *
+     * @param   string      $string1
+     * @param   string      $string2
+     *
+     * @return  int
+     */
+    public static function str_matchlen ($string1, $string2)
+    {
+        $n = min(strlen($string1), strlen($string2));
+        for ( $i = 0; $i < $n && $string1[$i] === $string2[$i]; $i++ );
+        return $i;
+    }
+
+
+    /**
      * Similar to addslashes(), but idempotent: it only escapes characters in a
      * string if the string hasn't already been fully escaped.
      *
@@ -290,9 +307,7 @@ class Functions
      */
     public static function first ($value)
     {
-        if ( is_array($value) ) {
-            return count($value) == 0 ? null : $value[0];
-        }
+        return count($value) == 0 ? null : $value[0];
     }
 
 
@@ -305,10 +320,7 @@ class Functions
      */
     public static function last ($value)
     {
-        if ( is_array($value) ) {
-            $n = count($value);
-            return $n == 0 ? null : $value[$n - 1];
-        }
+        return (($n = count($value)) == 0) ? null : $value[$n - 1];
     }
 
 }
