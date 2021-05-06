@@ -45,7 +45,9 @@ namespace Asinius;
 //  (from https://web.archive.org/web/20180731183139/http://www.virtsync.com/c-error-codes-include-errno)
 
 defined('EUNDEF')       or define('EUNDEF', -1);       //  Non-specific; try to avoid
+defined('EPERM')        or define('EPERM', 1);         //  Operation not permitted.
 defined('ENOENT')       or define('ENOENT', 2);        //  File not found
+defined('EAGAIN')       or define('EAGAIN', 11);       //  Try again?
 defined('EWOULDBLOCK')  or define('EWOULDBLOCK', 11);  //  Operation would block
 defined('EACCESS')      or define('EACCESS', 13);      //  Permission/access denied
 defined('EEXIST')       or define('EEXIST', 17);       //  File exists
@@ -55,6 +57,7 @@ defined('ENOSYS')       or define('ENOSYS', 38);       //  Function not implemen
 defined('ENODATA')      or define('ENODATA', 61);      //  No data available
 defined('EFTYPE')       or define('EFTYPE', 79);       //  Wrong file type
 defined('ENOTCONN')     or define('ENOTCONN', 107);    //  Endpoint not connected
+defined('EALREADY')     or define('EALREADY', 114);    //  Operation already in progress.
 //  Custom error conditions.
 defined('EPARSE')       or define('EPARSE', 201);      //  Parse error
 defined('ENOTFILE')     or define('ENOTFILE', 202);    //  Not a regular file
