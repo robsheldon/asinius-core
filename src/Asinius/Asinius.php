@@ -4,11 +4,19 @@
 *                                                                              *
 *   Asinius\Asinius                                                            *
 *                                                                              *
-*   Miscellaneous methods used by other classes.                               *
+*   Provides the Asinius library autoloader (for non-Composer projects) and    *
+*   the assert_parent() call stack inspection function, along with the         *
+*   following traits:                                                          *
+*       CallerInfo                                                             *
+*       DatastreamProperties                                                   *
+*       DatastreamLogging                                                      *
+*                                                                              *
+*   These traits are commonly used by other library components and disk        *
+*   accesses are expensive, so they're all included here.                      *
 *                                                                              *
 *   LICENSE                                                                    *
 *                                                                              *
-*   Copyright (c) 2020 Rob Sheldon <rob@rescue.dev>                            *
+*   Copyright (c) 2021 Rob Sheldon <rob@robsheldon.com>                        *
 *                                                                              *
 *   Permission is hereby granted, free of charge, to any person obtaining a    *
 *   copy of this software and associated documentation files (the "Software"), *
@@ -33,6 +41,8 @@
 *******************************************************************************/
 
 namespace Asinius;
+
+use RuntimeException;
 
 
 /*******************************************************************************
@@ -100,7 +110,7 @@ class Asinius
             //  It's tempting to set this to some string and continue, but this
             //  is a situation that at best will break the autoloader in weird
             //  ways and at worst could cause a path traversal security issue.
-            throw new \RuntimeException("Can't find path to Asinius components. Asinius.php should be in core/src/Asinius/Asinius.php somewhere in your project.");
+            throw new RuntimeException("Can't find path to Asinius components. Asinius.php should be in core/src/Asinius/Asinius.php somewhere in your project.");
         }
     }
 
@@ -109,13 +119,13 @@ class Asinius
      * Autoloader for Asinius library classes. This function lazy-loads the
      * directory structure for its various class files as they are requested.
      *
-     * @param   string      $classsname
+     * @param   string      $classname
      *
      * @internal
      *
      * @return  void
      */
-    private static function autoload ($classname)
+    private static function autoload (string $classname)
     {
         if ( ! is_array(self::$_class_files) ) {
             self::init_autoloader();
@@ -175,7 +185,7 @@ class Asinius
                     //  case that a file belonging to this library, matching
                     //  the class path we're looking for, exists but is not
                     //  readable.
-                    throw new \RuntimeException("File not accessible: $path");
+                    throw new RuntimeException("File not accessible: $path");
                 }
                 //  A closure is used here to prevent conflicts and access to
                 //  "self" or "$this".
@@ -193,7 +203,7 @@ class Asinius
     /**
      * Check the call stack to ensure that an object was instantiated by a specific class.
      *
-     * @param   string      $classes
+     * @param   mixed      $classes
      * 
      * @throws  RuntimeException
      *
@@ -236,12 +246,10 @@ class Asinius
         }
         if ( count($classes) < 2 ) {
             $class = $classes[0];
-            throw new \RuntimeException("$child_class must be instantiated by the $class class");
+            throw new RuntimeException("$child_class must be instantiated by the $class class");
         }
-        else {
-            $classes = implode(', ', $classes);
-            throw new \RuntimeException("$child_class must be instantiated by one of the following classes: $classes");
-        }
+        $classes = implode(', ', $classes);
+        throw new RuntimeException("$child_class must be instantiated by one of the following classes: $classes");
     }
 
 
@@ -265,7 +273,7 @@ trait CallerInfo
      *
      * @return  boolean
      */
-    protected static function _caller_is ($reference)
+    protected static function _caller_is ($reference) : bool
     {
         if ( ! is_array($reference) ) {
             $reference = [$reference];
@@ -304,7 +312,7 @@ trait DatastreamProperties
     ];
 
     //  The CallerInfo trait is used here for controlled access to properties.
-    use \Asinius\CallerInfo;
+    use CallerInfo;
 
 
     /**
@@ -314,11 +322,11 @@ trait DatastreamProperties
      * 
      * @param   string      $property
      *
-     * @throws  \RuntimeException
+     * @throws  RuntimeException
      * 
      * @return  mixed
      */
-    public function __get ($property)
+    public function __get (string $property)
     {
         if ( array_key_exists($property, $this->_properties['values']) ) {
             return $this->_properties['values'][$property]['value'];
@@ -326,7 +334,7 @@ trait DatastreamProperties
         if ( is_callable([$this, "get_$property"]) ) {
             return call_user_func([$this, "get_$property"]);
         }
-        throw new \RuntimeException("Undefined property: " . __CLASS__ . "->\$$property");
+        throw new RuntimeException("Undefined property: " . __CLASS__ . "->\$$property");
     }
 
 
@@ -337,7 +345,7 @@ trait DatastreamProperties
      *
      * @return  boolean
      */
-    public function __isset ($property)
+    public function __isset (string $property)
     {
         return array_key_exists($property, $this->_properties['values']) || is_callable([$this, "get_$property"]);
     }
@@ -357,20 +365,20 @@ trait DatastreamProperties
      * @param   string      $property
      * @param   mixed       $value
      *
-     * @throws  \RuntimeException
+     * @throws  RuntimeException
      *
      * @return  void
      */
-    public function __set ($property, $value)
+    public function __set (string $property, $value)
     {
         if ( ! array_key_exists($property, $this->_properties['values']) ) {
             if ( $this->_properties['restricted'] && ! static::_caller_is($this) ) {
-                throw new \RuntimeException("Undefined property: " . __CLASS__ . "->\$$property (properties for this object are currently restricted)");
+                throw new RuntimeException("Undefined property: " . __CLASS__ . "->\$$property (properties for this object are currently restricted)");
             }
             $this->_properties['values'][$property] = ['value' => $value, 'locked' => false];
         }
         else if ( $this->_properties['values'][$property]['locked'] && ! static::_caller_is($this) ) {
-            throw new \RuntimeException("Can't set " . __CLASS__ . "->\$$property: this property is currently read-only");
+            throw new RuntimeException("Can't set " . __CLASS__ . "->\$$property: this property is currently read-only");
         }
         else if ( is_callable([$this, "set_$property"]) && ! static::_caller_is($this) ) {
             return call_user_func([$this, "set_$property"], $value);
@@ -384,9 +392,11 @@ trait DatastreamProperties
     /**
      * Return true if a property value exists.
      *
+     * @param   string      $property
+     *
      * @return  boolean
      */
-    protected function _property_exists ($property)
+    protected function _property_exists (string $property) : bool
     {
         return array_key_exists($property, $this->_properties['values']);
     }
@@ -398,14 +408,14 @@ trait DatastreamProperties
      *
      * @param  string       $property
      *
-     * @throws \RuntimeException
+     * @throws RuntimeException
      *
      * @return void
      */
-    protected function _lock_property ($property)
+    protected function _lock_property (string $property)
     {
         if ( ! array_key_exists($property, $this->_properties['values']) ) {
-            throw new \RuntimeException("Can't lock " . __CLASS__ . "->\$$property: this property does not exist");
+            throw new RuntimeException("Can't lock " . __CLASS__ . "->\$$property: this property does not exist");
         }
         $this->_properties['values'][$property]['locked'] = true;
     }
@@ -416,14 +426,14 @@ trait DatastreamProperties
      *
      * @param  string       $property
      *
-     * @throws \RuntimeException
+     * @throws RuntimeException
      *
      * @return void
      */
-    protected function _unlock_property ($property)
+    protected function _unlock_property (string $property)
     {
         if ( ! array_key_exists($property, $this->_properties['values']) ) {
-            throw new \RuntimeException("Can't unlock " . __CLASS__ . "->\$$property: this property does not exist");
+            throw new RuntimeException("Can't unlock " . __CLASS__ . "->\$$property: this property does not exist");
         }
         $this->_properties['values'][$property]['locked'] = false;
     }

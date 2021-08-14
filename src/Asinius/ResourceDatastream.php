@@ -35,6 +35,8 @@
 
 namespace Asinius;
 
+use RuntimeException;
+
 
 /*******************************************************************************
 *                                                                              *
@@ -90,9 +92,11 @@ class ResourceDatastream implements Datastream
     /**
      * Return a stream type according to the value of get_resource_type().
      *
+     * @param $resource
+     *
      * @return  int
      */
-    public static function get_stream_type ($resource)
+    public static function get_stream_type ($resource): int
     {
         if ( (defined('STDIN') && $resource === STDIN) || (defined('STDOUT') && $resource === STDOUT) || (defined('STDERR') && $resource === STDERR) ) {
             return Datastream::STREAM_PIPE;
@@ -225,12 +229,12 @@ class ResourceDatastream implements Datastream
     protected function _install_wrappers ()
     {
         if ( $this->_type === 0 ) {
-            $this->_functions[static::STREAM_TIMEOUTF] = function(){throw new \RuntimeException('timeout() is not implemented for this type of Datastream: ' . $this->_name, ENOSYS);};
-            $this->_functions[static::STREAM_ACCEPTF]  = function(){throw new \RuntimeException( 'accept() is not implemented for this type of Datastream: ' . $this->_name, ENOSYS);};
-            $this->_functions[static::STREAM_READF]    = function(){throw new \RuntimeException(   'read() is not implemented for this type of Datastream: ' . $this->_name, ENOSYS);};
-            $this->_functions[static::STREAM_EOFF]     = function(){throw new \RuntimeException(    'eof() is not implemented for this type of Datastream: ' . $this->_name, ENOSYS);};
-            $this->_functions[static::STREAM_WRITEF]   = function(){throw new \RuntimeException(  'write() is not implemented for this type of Datastream: ' . $this->_name, ENOSYS);};
-            $this->_functions[static::STREAM_CLOSEF]   = function(){throw new \RuntimeException(  'close() is not implemented for this type of Datastream: ' . $this->_name, ENOSYS);};
+            $this->_functions[static::STREAM_TIMEOUTF] = function(){throw new RuntimeException('timeout() is not implemented for this type of Datastream: ' . $this->_name, ENOSYS);};
+            $this->_functions[static::STREAM_ACCEPTF]  = function(){throw new RuntimeException( 'accept() is not implemented for this type of Datastream: ' . $this->_name, ENOSYS);};
+            $this->_functions[static::STREAM_READF]    = function(){throw new RuntimeException(   'read() is not implemented for this type of Datastream: ' . $this->_name, ENOSYS);};
+            $this->_functions[static::STREAM_EOFF]     = function(){throw new RuntimeException(    'eof() is not implemented for this type of Datastream: ' . $this->_name, ENOSYS);};
+            $this->_functions[static::STREAM_WRITEF]   = function(){throw new RuntimeException(  'write() is not implemented for this type of Datastream: ' . $this->_name, ENOSYS);};
+            $this->_functions[static::STREAM_CLOSEF]   = function(){throw new RuntimeException(  'close() is not implemented for this type of Datastream: ' . $this->_name, ENOSYS);};
             return;
         }
         //  read():
@@ -243,7 +247,7 @@ class ResourceDatastream implements Datastream
                         $this->_state &= ~Datastream::STREAM_WRITABLE;
                     }
                     else {
-                        throw new \RuntimeException("Can't read() from this stream because it is write-only", EACCESS);
+                        throw new RuntimeException("Can't read() from this stream because it is write-only", EACCESS);
                     }
                 }
                 if ( $this->_flags & static::STREAMOPT_LINEMODE ) {
@@ -278,7 +282,7 @@ class ResourceDatastream implements Datastream
                         }
                     }
                     else {
-                        throw new \RuntimeException("Can't write() to this stream because it is read-only", EACCESS);
+                        throw new RuntimeException("Can't write() to this stream because it is read-only", EACCESS);
                     }
                 }
                 if ( strlen($this->_write_buffer) < 1 ) {
@@ -316,13 +320,14 @@ class ResourceDatastream implements Datastream
      * Note: some of the approaches here won't work correctly in Windows
      * environments. See also https://bugs.php.net/bug.php?id=34972
      * 
-     * @param   int         $operation
+     * @param   int     $operation
      *
      * @internal
      *
      * @return  mixed
+     *
      */
-    protected function _poll ($operation)
+    protected function _poll (int $operation)
     {
         //  Run $function on an interval determined by current i/o load, for
         //  up to $this->_timeout microseconds, then return all of the function
@@ -345,7 +350,7 @@ class ResourceDatastream implements Datastream
         //  (1.01s and 31usecs).
         $function = $this->_functions[$operation];
         //  List of result values.
-        $results = array();
+        $results = [];
         list($start_secs, $start_usecs) = array_values(gettimeofday(false));
         while ( true ) {
             //  Start the timer. gettimeofday(false) is used here because
@@ -411,9 +416,7 @@ class ResourceDatastream implements Datastream
      *
      * @param   mixed       $resource
      *
-     * @throws  \RuntimeException
-     *
-     * @return  \Asinius\ResourceDatastream
+     * @throws  RuntimeException
      */
     public function __construct ($resource)
     {
@@ -429,18 +432,18 @@ class ResourceDatastream implements Datastream
                     case 'STDIN':
                         $pipe = fopen('php://stdin', 'r');
                         if ( $pipe === false ) {
-                            throw new \RuntimeException("Can't open $resource for reading in this environment");
+                            throw new RuntimeException("Can't open $resource for reading in this environment");
                         }
                         break;
                     case 'STDOUT':
                     case 'STDERR':
                         $pipe = fopen(sprintf('php://%s', strtolower($resource)), 'a');
                         if ( $pipe === false ) {
-                            throw new \RuntimeException("Can't open $resource for writing in this environment");
+                            throw new RuntimeException("Can't open $resource for writing in this environment");
                         }
                        break;
                     default:
-                        throw new \RuntimeException('Reached impossible code path');
+                        throw new RuntimeException('Reached impossible code path');
                 }
                 //  Create the constant to be used everywhere else.
                 define($resource, $pipe);
@@ -463,10 +466,10 @@ class ResourceDatastream implements Datastream
                         //  directory must exist and must be writable.
                         $parent_dir = @realpath(dirname($resource));
                         if ( $parent_dir === false ) {
-                            throw new \RuntimeException("File at $resource doesn't exist and it can't be created because the parent directory doesn't exist", ENOENT);
+                            throw new RuntimeException("File at $resource doesn't exist and it can't be created because the parent directory doesn't exist", ENOENT);
                         }
                         if ( ! is_writable($parent_dir) ) {
-                            throw new \RuntimeException("File at $resource doesn't exist and it can't be created because the parent directory isn't writable", EACCESS);
+                            throw new RuntimeException("File at $resource doesn't exist and it can't be created because the parent directory isn't writable", EACCESS);
                         }
                         //  Parent directory exists and is writable, continue.
                         $this->_path = implode(DIRECTORY_SEPARATOR, [$parent_dir, basename($resource)]);
@@ -481,7 +484,7 @@ class ResourceDatastream implements Datastream
                         //  to access files in their own directory, either use
                         //  an absolute path or fopen() the path first and pass
                         //  the resource handle instead.
-                        throw new \RuntimeException("The application tried to access a file in its own directory. Wait, that's illegal", EACCESS);
+                        throw new RuntimeException("The application tried to access a file in its own directory. Wait, that's illegal", EACCESS);
                     }
                     $this->_type = Datastream::STREAM_FILE;
                     $this->_state |= (Datastream::STREAM_READABLE | Datastream::STREAM_WRITABLE);
@@ -518,11 +521,11 @@ class ResourceDatastream implements Datastream
                     }
                     break;
                 case Datastream::STREAM_UNSUPPORTED:
-                    throw new \RuntimeException("Can't create a " . __CLASS__ . ' from this resource type: ' . \Asinius\Functions::to_str(@get_resource_type($resource)));
+                    throw new RuntimeException("Can't create a " . __CLASS__ . ' from this resource type: ' . Functions::to_str(@get_resource_type($resource)));
             }
         }
         else {
-            throw new \RuntimeException("Can't create a " . __CLASS__ . ' from this: ' . \Asinius\Functions::to_str($resource), EINVAL);
+            throw new RuntimeException("Can't create a " . __CLASS__ . ' from this: ' . Functions::to_str($resource), EINVAL);
         }
         //  Set the unopened flag and unset the error flag.
         $this->_state |= Datastream::STREAM_UNOPENED;
@@ -561,17 +564,17 @@ class ResourceDatastream implements Datastream
      * hasn't been opened yet, but applications can explicitly call this as
      * needed.
      *
-     * @throws  \RuntimeException
+     * @throws  RuntimeException
      *
      * @return  void
      */
     public function open ()
     {
         if ( $this->_state & Datastream::STREAM_CLOSED ) {
-            throw new \RuntimeException('Datastream has been closed', ENOTCONN);
+            throw new RuntimeException('Datastream has been closed', ENOTCONN);
         }
         else if ( $this->_state & Datastream::STREAM_ERROR ) {
-            throw new \RuntimeException("Datastream can't be opened due to a previous error", EHALTED);
+            throw new RuntimeException("Datastream can't be opened due to a previous error", EHALTED);
         }
         else if ( ! ($this->_state & Datastream::STREAM_UNOPENED) ) {
             return;
@@ -585,7 +588,7 @@ class ResourceDatastream implements Datastream
             if ( ! @file_exists($this->_path) ) {
                 if ( ($this->_connection = @fopen($this->_path, 'w')) === false ) {
                     $this->_state |= Datastream::STREAM_ERROR;
-                    throw new \RuntimeException('Failed to open file at ' . $this->_path . ' for writing', EACCESS);
+                    throw new RuntimeException('Failed to open file at ' . $this->_path . ' for writing', EACCESS);
                 }
                 //  This path can only be writable.
                 $this->_state &= ~Datastream::STREAM_READABLE;
@@ -593,7 +596,7 @@ class ResourceDatastream implements Datastream
             else if ( ! @is_writable($this->_path) ) {
                 if ( ($this->_connection = @fopen($this->_path, 'r')) === false ) {
                     $this->_state |= Datastream::STREAM_ERROR;
-                    throw new \RuntimeException('Failed to open file at ' . $this->_path . ' for reading', EACCESS);
+                    throw new RuntimeException('Failed to open file at ' . $this->_path . ' for reading', EACCESS);
                 }
                 //  This path can only be readable.
                 $this->_state &= ~Datastream::STREAM_WRITABLE;
@@ -608,7 +611,7 @@ class ResourceDatastream implements Datastream
                 //  constructor instead.
                 if ( ($this->_connection = @fopen($this->_path, 'r+')) === false ) {
                     $this->_state |= Datastream::STREAM_ERROR;
-                    throw new \RuntimeException('Failed to open file at ' . $this->_path, EACCESS);
+                    throw new RuntimeException('Failed to open file at ' . $this->_path, EACCESS);
                 }
             }
             $this->_close_when_done = true;
@@ -617,7 +620,7 @@ class ResourceDatastream implements Datastream
             //  This code path should be impossible, but something someday will
             //  land here I'm sure.
             $this->_state |= Datastream::STREAM_ERROR;
-            throw new \RuntimeException('Stream does not exist', ENOTCONN);
+            throw new RuntimeException('Stream does not exist', ENOTCONN);
         }
         //  Install the mid-level stream operation functions that are appropriate
         //  for this type of stream.
@@ -671,7 +674,7 @@ class ResourceDatastream implements Datastream
             $this->open();
         }
         if ( ! $this->ready() ) {
-            throw new \RuntimeException('eof(): stream is not connected', ENOTCONN);
+            throw new RuntimeException('eof(): stream is not connected', ENOTCONN);
         }
         if ( $this->_type === Datastream::STREAM_FILE ) {
             //  Don't poll() files.
@@ -685,9 +688,11 @@ class ResourceDatastream implements Datastream
      * Return the next bytes, page, row, line, element, etc. Return null when
      * there is no more data to return.
      *
+     * @param   int         $count
+     *
      * @return  mixed
      */
-    public function read ($count = 1)
+    public function read (int $count = 1)
     {
         //  Load the requested data into the read buffer if it's not already
         //  available there.
@@ -722,19 +727,21 @@ class ResourceDatastream implements Datastream
      * Similar to read(), but the internal data buffer is not emptied. This
      * allows the application to "preview" the next chunk of data in the stream.
      *
+     * @param   int         $count
+     *
      * @return  mixed
      */
-    public function peek ($count = 1)
+    public function peek (int $count = 1)
     {
         if ( $this->_state & Datastream::STREAM_UNOPENED ) {
             $this->open();
         }
         if ( ! $this->ready() ) {
-            throw new \RuntimeException('read(): stream is not connected', ENOTCONN);
+            throw new RuntimeException('read(): stream is not connected', ENOTCONN);
         }
         if ( $count <= (count($this->_read_buffer) - $this->_buffer_index) ) {
             //  No read required at this time.
-            return array_slice($this->_buffer_index, $count);
+            return array_slice($this->_read_buffer, $this->_buffer_index, $count);
         }
         $chunk = '';
         switch ($this->_type) {
@@ -743,14 +750,14 @@ class ResourceDatastream implements Datastream
                     if ( ! $this->_state & Datastream::STREAM_READABLE ) {
                         //  The first read() operation for a file makes the file
                         //  read-only for the remainder of the stream.
-                        throw new \RuntimeException("Can't read() from this stream because it is write-only", EACCESS);
+                        throw new RuntimeException("Can't read() from this stream because it is write-only", EACCESS);
                     }
                     $this->_state &= ~Datastream::STREAM_WRITABLE;
                 }
                 $chunk = @fread($this->_connection, $this->_read_chunk_size);
                 break;
             default:
-                throw new \RuntimeException(sprintf('Oops: ResourceDatastream->_type is not valid (%s)', $this->_type));
+                throw new RuntimeException(sprintf('Oops: ResourceDatastream->_type is not valid (%s)', $this->_type));
         }
         //  Process the read chunk and add it to the end of the internal buffer.
         $last_count = -1;
@@ -789,7 +796,7 @@ class ResourceDatastream implements Datastream
                 //  Return the first $count characters of the read buffer.
                 return mb_substr($this->_read_buffer, 0, $count);
             default:
-                throw new \RuntimeException(sprintf('Oops: ResourceDatastream->_flags has an invalid mode (%s)', $this->_flags & static::STREAMOPT_MODEMASK));
+                throw new RuntimeException(sprintf('Oops: ResourceDatastream->_flags has an invalid mode (%s)', $this->_flags & static::STREAMOPT_MODEMASK));
         }
     }
 
@@ -817,7 +824,7 @@ class ResourceDatastream implements Datastream
             $this->open();
         }
         if ( ! $this->ready() ) {
-            throw new \RuntimeException('write(): stream is not connected', ENOTCONN);
+            throw new RuntimeException('write(): stream is not connected', ENOTCONN);
         }
         $this->_write_buffer .= $data;
         return $this->_functions[static::STREAM_WRITEF]();
@@ -831,7 +838,7 @@ class ResourceDatastream implements Datastream
      *
      * @return  void
      */
-    public function set ($options)
+    public function set (array $options)
     {
         foreach ($options as $option => $value) {
             switch ($option) {
@@ -846,8 +853,7 @@ class ResourceDatastream implements Datastream
                             else if ( $this->_flags & static::STREAMOPT_LINEMODE ) {
                                 $this->_read_buffer = implode("\n", $this->_read_buffer);
                             }
-                            $this->_flags |= static::STREAMOPT_RAWMODE;
-                            $this->_flags &= ~(static::STREAMOPT_CHARMODE & static::STREAMOPT_LINEMODE);
+                            $new_mode_flag = static::STREAMOPT_RAWMODE;
                             break;
                         case 'char':
                             //  Data is buffered as an array of characters.
@@ -864,8 +870,7 @@ class ResourceDatastream implements Datastream
                                 //      Need support here for UTF-8 and other encodings.
                                 $this->_read_buffer = explode('', $this->_read_buffer);
                             }
-                            $this->_flags |= static::STREAMOPT_CHARMODE;
-                            $this->_flags &= ~(static::STREAMOPT_RAWMODE & static::STREAMOPT_LINEMODE);
+                            $new_mode_flag = static::STREAMOPT_CHARMODE;
                             break;
                         case 'line':
                             //  Data is buffered as an array of lines separated
@@ -876,16 +881,17 @@ class ResourceDatastream implements Datastream
                             else if ( $this->_flags & static::STREAMOPT_CHARMODE ) {
                                 $this->_read_buffer = explode("\n", implode('', $this->_read_buffer));
                             }
-                            $this->_flags |= static::STREAMOPT_LINEMODE;
-                            $this->_flags &= ~(static::STREAMOPT_RAWMODE & static::STREAMOPT_CHARMODE);
+                            $new_mode_flag = static::STREAMOPT_LINEMODE;
                             break;
                         default:
-                            throw new \RuntimeException("\"$value\" is not a valid value for a stream mode option");
+                            throw new RuntimeException("\"$value\" is not a valid value for a stream mode option");
                     }
+                    $this->_flags &= ~static::STREAMOPT_MODEMASK;
+                    $this->_flags |= $new_mode_flag;
                     break;
                 case 'read-chunk-size':
                     if ( ! is_int($value) || $value < 1 ) {
-                        throw new \RuntimeException("\"$value\" is not a valid value for a stream's read-chunk-size", EINVAL);
+                        throw new RuntimeException("\"$value\" is not a valid value for a stream's read-chunk-size", EINVAL);
                     }
                     $this->_read_chunk_size = $value;
                     break;
@@ -893,7 +899,7 @@ class ResourceDatastream implements Datastream
                     //  The size limit of the internal read buffer.
                     //  0 makes it unlimited.
                     if ( ! is_int($value) || $value < 0 ) {
-                        throw new \RuntimeException("\"$value\" is not a valid value for a stream's read-buffer-size", EINVAL);
+                        throw new RuntimeException("\"$value\" is not a valid value for a stream's read-buffer-size", EINVAL);
                     }
                     $this->_read_buffer_size = $value;
                     break;
@@ -901,7 +907,7 @@ class ResourceDatastream implements Datastream
                     $this->_charset = strtolower($value);
                     break;
                 default:
-                    throw new \RuntimeException("Unrecognized option: $option", EINVAL);
+                    throw new RuntimeException("Unrecognized option: $option", EINVAL);
             }
         }
     }

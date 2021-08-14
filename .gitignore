@@ -1,3 +1,6 @@
 # Composer-related
 vendor/
 composer.lock
+
+# PHPStorm
+.idea/
