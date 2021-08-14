@@ -345,7 +345,7 @@ trait DatastreamProperties
      *
      * @return  boolean
      */
-    public function __isset (string $property)
+    public function __isset (string $property) : bool
     {
         return array_key_exists($property, $this->_properties['values']) || is_callable([$this, "get_$property"]);
     }

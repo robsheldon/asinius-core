@@ -101,7 +101,7 @@ interface Datastream
      * 
      * @param   string      $property
      */
-    public function __get ($property);
+    public function __get (string $property);
 
     /**
      * Datastreams must include complete support for custom properties.
@@ -109,7 +109,7 @@ interface Datastream
      * @param   string      $property
      * @param   mixed       $value
      */
-    public function __set ($property, $value);
+    public function __set (string $property, $value);
 
     /**
      * Datastreams must include complete support for custom properties.
@@ -118,7 +118,7 @@ interface Datastream
      * 
      * @return  boolean
      */
-    public function __isset ($property);
+    public function __isset (string $property) : bool;
 
     /**
      * Datastreams must not open their endpoint in the constructor, so that the
