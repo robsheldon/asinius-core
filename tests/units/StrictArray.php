@@ -4,7 +4,7 @@ namespace Asinius\tests\units;
 
 use atoum;
 
-class StrictArray extends atoum\test
+class StrictArray extends atoum
 {
 
     private $_inputs = [];
