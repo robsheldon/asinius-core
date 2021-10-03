@@ -98,6 +98,40 @@ class ResourceDatastream extends atoum
         $file->set(['mode' => 'raw']);
         $data = $file->read(1);
         $this->string($data)->isEqualTo('b');
+        $file->close();
+    }
+
+
+    public function testPositionTracking ()
+    {
+        $file = $this->getFileByPath('01.txt');
+        $file->set(['mode' => 'char', 'tracking' => true]);
+        //  Starts at line 0, position 0.
+        $this->array($file->position())->isEqualTo(['line' => 0, 'position' => 0]);
+        //  peek() does not advance the position info.
+        $file->peek(4);
+        $this->array($file->position())->isEqualTo(['line' => 0, 'position' => 0]);
+        $data = $file->read(1);
+        $this
+            ->array($file->position())->isEqualTo(['line' => 1, 'position' => 1])
+            ->array($data)->isEqualTo(['1']);
+        $data = $file->read(1);
+        $this
+            ->array($file->position())->isEqualTo(['line' => 2, 'position' => 0])
+            ->array($data)->isEqualTo(["\n"]);
+        $data = $file->read(1);
+        $this
+            ->array($file->position())->isEqualTo(['line' => 2, 'position' => 1])
+            ->array($data)->isEqualTo(['2']);
+        $data = $file->read(5);
+        $this
+            ->array($file->position())->isEqualTo(['line' => 3, 'position' => 2])
+            ->array($data)->isEqualTo([' ', 'a', "\n", '3', ' ']);
+        $data = $file->read(20);
+        $this
+            ->array($file->position())->isEqualTo(['line' => 5, 'position' => 0])
+            ->array($data)->isEqualTo(['b', "\n", '4', ' ', '5', ' ', '6', "\n"]);
+        $file->close();
     }
 
 }

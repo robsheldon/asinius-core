@@ -725,7 +725,10 @@ class ResourceDatastream implements Datastream
         $i = is_array($out) ? count($out) : strlen($out);
         $this->_read_cache_position += $i;
         //  If position tracking is enabled, do the expensive counting now.
-        if ( $this->_flags & (static::STREAMOPT_TRACKING & static::STREAMOPT_CHARMODE) ) {
+        if ( $i > 0 && $this->_flags & (static::STREAMOPT_TRACKING | static::STREAMOPT_CHARMODE) ) {
+            if ( $this->_line === 0 ) {
+                $this->_line = 1;
+            }
             $n = 0;
             while ( $i-- ) {
                 if ( $out[$i] === "\n" ) {
