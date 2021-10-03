@@ -5,11 +5,28 @@
 *   Asinius\ResourceDatastream                                                 *
 *                                                                              *
 *   This class implements the Datastream interface for PHP resource values --  *
-*   files, pipes, and so on.
+*   files, pipes, and network sockets. It is intended to be able to read from  *
+*   and write to anything that PHP natively supports with a simpler, more      *
+*   reliable, and efficient interface.                                         *
+*                                                                              *
+*   IMPLEMENTATION NOTES                                                       *
+*                                                                              *
+*   When reading, a ResourceDatastream stores data in two buffer-like          *
+*   structures: the read buffer and the read cache. The read buffer is a raw   *
+*   store of bytes read from the connection endpoint. The read cache contains  *
+*   data processed from the read buffer into whatever format the application   *
+*   is expecting. For example, in the case of a file, the application may be   *
+*   reading the file line-at-a-time but internally files are read 8 KB at a    *
+*   time. The read buffer will store up to the next 8 KB of data in the file,  *
+*   but the read cache stores the N lines of the file. The application can     *
+*   read() these one at a time or in batches or all at once, and rewind them   *
+*   as needed up to the limits it sets for the read cache. The read cache      *
+*   stores as much history as it can, purging old reads as new reads are       *
+*   requested by the application.                                              *
 *                                                                              *
 *   LICENSE                                                                    *
 *                                                                              *
-*   Copyright (c) 2020 Rob Sheldon <rob@rescue.dev>                            *
+*   Copyright (c) 2021 Rob Sheldon <rob@robsheldon.com>                        *
 *                                                                              *
 *   Permission is hereby granted, free of charge, to any person obtaining a    *
 *   copy of this software and associated documentation files (the "Software"), *
@@ -59,18 +76,25 @@ class ResourceDatastream implements Datastream
     private const STREAMOPT_CHARMODE    = 0b0010;
     private const STREAMOPT_LINEMODE    = 0b0100;
     private const STREAMOPT_MODEMASK    = 0b0111;
+    private const STREAMOPT_TRACKING    = 0b1000;
 
     protected $_connection              = null;
     protected $_type                    = 0;
     protected $_name                    = null;
     protected $_path                    = null;
     protected $_close_when_done         = false;
-    protected $_flags                   = self::STREAMOPT_RAWMODE;
+    protected $_flags                   = 0;
     protected $_state                   = Datastream::STREAM_UNOPENED;
     protected $_functions               = [];
-    protected $_read_buffer             = [];
+    //  $_read_buffer stores data retrieved from the Datastream's endpoint
+    //  that hasn't been consumed by the application yet.
+    protected $_read_buffer             = '';
     protected $_read_buffer_size        = 0;
-    protected $_buffer_index            = 0;
+    //  $_read_cache stores data that has been prepared by peek() to be
+    //  consumed by the application.
+    protected $_read_cache              = null;
+    protected $_read_cache_position     = 0;
+    protected $_read_cache_max_count    = 0;
     protected $_write_buffer            = '';
     //  Support for different character encodings during read() operations.
     protected $_charset                 = 'ascii';
@@ -228,45 +252,6 @@ class ResourceDatastream implements Datastream
      */
     protected function _install_wrappers ()
     {
-        if ( $this->_type === 0 ) {
-            $this->_functions[static::STREAM_TIMEOUTF] = function(){throw new RuntimeException('timeout() is not implemented for this type of Datastream: ' . $this->_name, ENOSYS);};
-            $this->_functions[static::STREAM_ACCEPTF]  = function(){throw new RuntimeException( 'accept() is not implemented for this type of Datastream: ' . $this->_name, ENOSYS);};
-            $this->_functions[static::STREAM_READF]    = function(){throw new RuntimeException(   'read() is not implemented for this type of Datastream: ' . $this->_name, ENOSYS);};
-            $this->_functions[static::STREAM_EOFF]     = function(){throw new RuntimeException(    'eof() is not implemented for this type of Datastream: ' . $this->_name, ENOSYS);};
-            $this->_functions[static::STREAM_WRITEF]   = function(){throw new RuntimeException(  'write() is not implemented for this type of Datastream: ' . $this->_name, ENOSYS);};
-            $this->_functions[static::STREAM_CLOSEF]   = function(){throw new RuntimeException(  'close() is not implemented for this type of Datastream: ' . $this->_name, ENOSYS);};
-            return;
-        }
-        //  read():
-        if ( $this->_type === Datastream::STREAM_FILE || $this->_name === 'STDIN' ) {
-            $this->_functions[static::STREAM_READF] = function(){
-                if ( $this->_state & Datastream::STREAM_WRITABLE ) {
-                    if ( $this->_state & Datastream::STREAM_READABLE ) {
-                        //  The first read() operation for a file makes the file
-                        //  read-only for the remainder of the stream.
-                        $this->_state &= ~Datastream::STREAM_WRITABLE;
-                    }
-                    else {
-                        throw new RuntimeException("Can't read() from this stream because it is write-only", EACCESS);
-                    }
-                }
-                if ( $this->_flags & static::STREAMOPT_LINEMODE ) {
-                    return @fgets($this->_connection, $this->_read_chunk_size);
-                }
-                else if ( $this->_flags & static::STREAMOPT_CHARMODE ) {
-                    return @fgetc($this->_connection);
-                }
-                else {
-                    return @fread($this->_connection, 1);
-                }
-            };
-        }
-        //  eof():
-        if ( $this->_type === Datastream::STREAM_FILE || $this->_name === 'STDOUT' || $this->_name === 'STDERR' ) {
-            $this->_functions[static::STREAM_EOFF] = function(){
-                return feof($this->_connection);
-            };
-        }
         //  write():
         if ( $this->_type === Datastream::STREAM_FILE || $this->_name === 'STDOUT' || $this->_name === 'STDERR' ) {
             $this->_functions[static::STREAM_WRITEF] = function(){
@@ -297,17 +282,6 @@ class ResourceDatastream implements Datastream
                 //  These pipes are write-only.
                 $this->_state &= ~Datastream::STREAM_READABLE;
             }
-        }
-        //  close():
-        if ( $this->_name === 'STDOUT' || $this->_name === 'STDERR' || $this->_name === 'STDIN' ) {
-            $this->_functions[static::STREAM_CLOSEF] = function(){
-                return true;
-            };
-        }
-        else if ( $this->_type === Datastream::STREAM_FILE ) {
-            $this->_functions[static::STREAM_CLOSEF] = function(){
-                @fclose($this->_connection);
-            };
         }
     }
 
@@ -374,7 +348,7 @@ class ResourceDatastream implements Datastream
                         $this->_timeout = $this->_timeout >> 1;
                     }
                 }
-                if ( $this->_timeout < 0 || ($this->_timeout >= 0 && $elapsed >= $this->_timeout) ) {
+                if ( $this->_timeout < 0 || $elapsed >= $this->_timeout ) {
                     //  Timeout period has elapsed, return the current set of
                     //  results to the upstream handler.
                     return $results;
@@ -412,6 +386,47 @@ class ResourceDatastream implements Datastream
 
 
     /**
+     * Read raw data from the current connection endpoint and append it to the
+     * internal read buffer, returning the number of bytes read.
+     *
+     * @internal
+     *
+     * @throws  RuntimeException
+     *
+     * @return  int
+     */
+    protected function _readf () : int
+    {
+        switch ($this->_type) {
+            case Datastream::STREAM_FILE:
+                if ( $this->_state & Datastream::STREAM_WRITABLE ) {
+                    if ( ! $this->_state & Datastream::STREAM_READABLE ) {
+                        throw new RuntimeException("Can't read() or peek() from this stream because it is write-only", EACCESS);
+                    }
+                    //  The first read() operation for a file makes the file
+                    //  read-only for the remainder of the stream.
+                    $this->_state &= ~Datastream::STREAM_WRITABLE;
+                }
+                if ( @feof($this->_connection) ) {
+                    return 0;
+                }
+                $chunk = @fread($this->_connection, $this->_read_chunk_size);
+                $this->_read_buffer .= $chunk;
+                return strlen($chunk);
+            case Datastream::STREAM_PIPE:
+                //  This needs special handling because fread() on a pipe might block
+                //  and applications usually don't want that.
+            case Datastream::STREAM_SOCKET:
+                //  This requires the _poll() function above.
+            case Datastream::STREAM_GENERIC:
+                //  Need to figure out what to do here.
+            default:
+                throw new RuntimeException(sprintf('Oops: read() and peek() are not supported on this ResourceDatastream->_type (%s)', $this->_type));
+        }
+    }
+
+
+    /**
      * Return a new \Asinius\ResourceDatastream.
      *
      * @param   mixed       $resource
@@ -423,6 +438,9 @@ class ResourceDatastream implements Datastream
         //  Set an error condition now so that no further operations will be
         //  successfully executed if the constructor doesn't complete successfully.
         $this->_state |= Datastream::STREAM_ERROR;
+        //  Start the Datastream in raw mode.
+        $this->_flags |= static::STREAMOPT_RAWMODE;
+        $this->_read_buffer = '';
         $this->_install_wrappers();
         if ( is_string($resource) ) {
             $this->_name = $resource;
@@ -530,7 +548,8 @@ class ResourceDatastream implements Datastream
         //  Set the unopened flag and unset the error flag.
         $this->_state |= Datastream::STREAM_UNOPENED;
         $this->_state &= ~Datastream::STREAM_ERROR;
-        if ( $this->_type == Datastream::STREAM_FILE ) {
+        if ( $this->_type === Datastream::STREAM_FILE ) {
+            //  Files default to line mode.
             $this->set(['mode' => 'line']);
         }
         else if ( $this->_name === 'STDIN' ) {
@@ -571,10 +590,10 @@ class ResourceDatastream implements Datastream
     public function open ()
     {
         if ( $this->_state & Datastream::STREAM_CLOSED ) {
-            throw new RuntimeException('Datastream has been closed', ENOTCONN);
+            throw new RuntimeException('open(): Datastream has already been closed', ENOTCONN);
         }
         else if ( $this->_state & Datastream::STREAM_ERROR ) {
-            throw new RuntimeException("Datastream can't be opened due to a previous error", EHALTED);
+            throw new RuntimeException("open(): Datastream can't be opened due to a previous error", EHALTED);
         }
         else if ( ! ($this->_state & Datastream::STREAM_UNOPENED) ) {
             return;
@@ -637,14 +656,11 @@ class ResourceDatastream implements Datastream
      *
      * @return  boolean
      */
-    public function ready ()
+    public function ready () : bool
     {
-        if ( (! ($this->_state & Datastream::STREAM_ERROR)) && (($this->_state & Datastream::STREAM_CONNECTED) || ($this->_state & Datastream::STREAM_UNOPENED)) ) {
-            //  It's okay to consider STREAM_UNOPENED to be "ready" here; the
-            //  next read() or write() call will implicitly open the datastream.
-            return true;
-        }
-        return false;
+        //  It's okay to consider STREAM_UNOPENED to be "ready" here; the next
+        //  read() or write() call will implicitly open the datastream.
+        return ( (! ($this->_state & Datastream::STREAM_ERROR)) && (($this->_state & Datastream::STREAM_CONNECTED) || ($this->_state & Datastream::STREAM_UNOPENED)) );
     }
 
 
@@ -664,11 +680,11 @@ class ResourceDatastream implements Datastream
     /**
      * Return true if there is nothing more to read(), false otherwise.
      *
-     * TODO
+     * @throws  RuntimeException
      *
      * @return  boolean
      */
-    public function empty ()
+    public function empty () : bool
     {
         if ( $this->_state & Datastream::STREAM_UNOPENED ) {
             $this->open();
@@ -676,11 +692,7 @@ class ResourceDatastream implements Datastream
         if ( ! $this->ready() ) {
             throw new RuntimeException('eof(): stream is not connected', ENOTCONN);
         }
-        if ( $this->_type === Datastream::STREAM_FILE ) {
-            //  Don't poll() files.
-            return $this->_functions[static::STREAM_EOFF]();
-        }
-        return $this->_poll(static::STREAM_EOFF);
+        return is_null($this->peek());
     }
 
 
@@ -690,34 +702,46 @@ class ResourceDatastream implements Datastream
      *
      * @param   int         $count
      *
+     * @throws  RuntimeException
+     *
      * @return  mixed
      */
     public function read (int $count = 1)
     {
-        //  Load the requested data into the read buffer if it's not already
+        if ( $this->_state & Datastream::STREAM_UNOPENED ) {
+            $this->open();
+        }
+        if ( ! $this->ready() ) {
+            throw new RuntimeException('read(): stream is not connected', ENOTCONN);
+        }
+        //  Load the requested data into the read cache if it's not already
         //  available there.
         $out = $this->peek($count);
-        //  Empty the read buffer after retrieving its contents.
-        if ( is_array($this->_read_buffer) ) {
-            //  Line mode.
-            array_splice($this->_read_buffer, 0, count($out));
+        if ( $out === null ) {
+            //  No further action needed.
+            return null;
         }
-        else {
-            //  Character mode.
-            $this->_read_buffer = mb_substr($this->_read_buffer, mb_strlen($out));
-        }
-        if ( is_array($this->_read_buffer) ) {
-            $this->_line += count($out);
-            $this->_position = 0;
-        }
-        else {
-            $i = 0;
-            while ( mb_strpos($out, "\n", $i) !== false ) {
-                $this->_line++;
-                $this->_position = 0;
-                $i++;
+        //  Advance the internal read cache index.
+        $i = is_array($out) ? count($out) : strlen($out);
+        $this->_read_cache_position += $i;
+        //  If position tracking is enabled, do the expensive counting now.
+        if ( $this->_flags & (static::STREAMOPT_TRACKING & static::STREAMOPT_CHARMODE) ) {
+            $n = 0;
+            while ( $i-- ) {
+                if ( $out[$i] === "\n" ) {
+                    $this->_position = $n;
+                    $this->_line++;
+                    $n = 0;
+                    while ( $i ) {
+                        if ( $out[--$i] === "\n" ) {
+                            $this->_line++;
+                        }
+                    }
+                    break;
+                }
+                $n++;
             }
-            $this->_position += mb_strlen($out) - $i;
+            $this->_position += $n;
         }
         return $out;
     }
@@ -737,66 +761,82 @@ class ResourceDatastream implements Datastream
             $this->open();
         }
         if ( ! $this->ready() ) {
-            throw new RuntimeException('read(): stream is not connected', ENOTCONN);
+            throw new RuntimeException('peek(): stream is not connected', ENOTCONN);
         }
-        if ( $count <= (count($this->_read_buffer) - $this->_buffer_index) ) {
-            //  No read required at this time.
-            return array_slice($this->_read_buffer, $this->_buffer_index, $count);
-        }
+        $last_read_count = -1;
+        $cache_is_array = is_array($this->_read_cache);
         $chunk = '';
-        switch ($this->_type) {
-            case Datastream::STREAM_FILE:
-                if ( $this->_state & Datastream::STREAM_WRITABLE ) {
-                    if ( ! $this->_state & Datastream::STREAM_READABLE ) {
-                        //  The first read() operation for a file makes the file
-                        //  read-only for the remainder of the stream.
-                        throw new RuntimeException("Can't read() from this stream because it is write-only", EACCESS);
-                    }
-                    $this->_state &= ~Datastream::STREAM_WRITABLE;
+        while ( true ) {
+            //  Estimate how much data is still needed.
+            $cache_size = $cache_is_array ? count($this->_read_cache) : strlen($this->_read_cache);
+            $remaining = $count - $cache_size + $this->_read_cache_position;
+            //  1. Return null if:
+            //      a. $count is not valid;
+            //      b. No data was read and no data is available in the connection.
+            //  2. Return some or all of the read cache if:
+            //      a. The requested data is already in the cache;
+            //      b. Some data was read from the connection but no more is available;
+            //      c. Data has been read from the connection and it satisfies the request.
+            if ( $count <= 0 || $last_read_count === 0 || $remaining <= 0 ) {
+                //  No more data available (at this time?).
+                if ( $count <= 0 || $remaining === $count ) {
+                    //  Signal that peek() failed to retrieve any data.
+                    return null;
                 }
-                $chunk = @fread($this->_connection, $this->_read_chunk_size);
-                break;
-            default:
-                throw new RuntimeException(sprintf('Oops: ResourceDatastream->_type is not valid (%s)', $this->_type));
-        }
-        //  Process the read chunk and add it to the end of the internal buffer.
-        $last_count = -1;
-        switch ($this->_flags & static::STREAMOPT_MODEMASK) {
-            case static::STREAMOPT_LINEMODE:
-                //  Line mode. Fill the read buffer until it has $count lines or characters in it.
-                $n = count($this->_read_buffer);
-                while ( $last_count < $n && $n < $count ) {
-                    $last_count = $n;
-                    if ( $this->_type === Datastream::STREAM_FILE ) {
-                        //  Don't poll() files.
-                        $this->_read_buffer[] = $this->_functions[static::STREAM_READF]();
+                //  Return whatever is in the cache.
+                if ( $cache_is_array ) {
+                    return array_slice($this->_read_cache, $this->_read_cache_position, min($count, $cache_size - $this->_read_cache_position));
+                }
+                return substr($this->_read_cache, $this->_read_cache_position, min($count, $cache_size - $this->_read_cache_position));
+            }
+            //  Trim the read cache if needed before appending to it.
+            $trim = min($this->_read_cache_position, max(0, $cache_size + $count - $this->_read_cache_max_count));
+            if ( $trim > 0 ) {
+                $this->_read_cache = $cache_is_array ? array_slice($this->_read_cache, $trim) : substr($this->_read_cache, $trim);
+                $this->_read_cache_position -= $trim;
+            }
+            //  Process the data waiting in the read buffer according to the current
+            //  stream mode option and append the result to the read cache. Fill the
+            //  read buffer as necessary until the read cache is full or there is no
+            //  more data available.
+            switch ($this->_flags & static::STREAMOPT_MODEMASK) {
+                case static::STREAMOPT_RAWMODE:
+                    if ( strlen($this->_read_buffer) < $remaining ) {
+                        //  Read the next chunk in from the Datastream's connection.
+                        $last_read_count = $this->_readf();
+                    }
+                    $chunk = substr($this->_read_buffer, 0, $remaining);
+                    $this->_read_buffer = substr($this->_read_buffer, strlen($chunk));
+                    $this->_read_cache .= $chunk;
+                    break;
+                case static::STREAMOPT_CHARMODE:
+                    if ( strlen($this->_read_buffer) < ($remaining * 1.5) ) {
+                        $last_read_count = $this->_readf();
+                    }
+                    $chunk = Multibyte::strcut($this->_read_buffer, 0, $remaining * 1.5);
+                    $this->_read_buffer = substr($this->_read_buffer, strlen($chunk));
+                    $this->_read_cache = array_merge($this->_read_cache, Multibyte::str_split($chunk, 1, $this->_charset));
+                    break;
+                case static::STREAMOPT_LINEMODE:
+                    if ( strlen($this->_read_buffer) < ($remaining * 80) ) {
+                        $last_read_count = $this->_readf();
+                    }
+                    $lines = preg_split("/\r?\n/", $this->_read_buffer);
+                    if ( ($n = count($lines)) === 1 ) {
+                        $chunk .= $lines[0];
+                        $this->_read_buffer = '';
                     }
                     else {
-                        $this->_read_buffer[] = implode('', $this->_poll(static::STREAM_READF));
+                        $lines[0] = $chunk . $lines[0];
+                        $chunk = '';
+                        $this->_read_buffer = $lines[$n-1];
+                        unset($lines[$n-1]);
+                        $this->_read_cache = array_merge($this->_read_cache, $lines);
                     }
-                    $n = count($this->_read_buffer);
-                }
-                //  Return the first $count elements of the read buffer.
-                return array_slice($this->_read_buffer, 0, $count);
-            case static::STREAMOPT_CHARMODE:
-                //  Character mode. Fill the read buffer until it has $count
-                //  characters in it.
-                $n = mb_strlen($this->_read_buffer);
-                while ( $last_count < $n && $n < $count ) {
-                    $last_count = $n;
-                    if ( $this->_type === Datastream::STREAM_FILE ) {
-                        //  Don't poll() files.
-                        $this->_read_buffer .= $this->_functions[static::STREAM_READF]();
-                    }
-                    else {
-                        $this->_read_buffer .= implode('', $this->_poll(static::STREAM_READF));
-                    }
-                    $n = mb_strlen($this->_read_buffer);
-                }
-                //  Return the first $count characters of the read buffer.
-                return mb_substr($this->_read_buffer, 0, $count);
-            default:
-                throw new RuntimeException(sprintf('Oops: ResourceDatastream->_flags has an invalid mode (%s)', $this->_flags & static::STREAMOPT_MODEMASK));
+                    break;
+                default:
+                    throw new RuntimeException(sprintf('Oops: ResourceDatastream->_flags has an invalid mode (%s)', $this->_flags & static::STREAMOPT_MODEMASK));
+            }
         }
     }
 
@@ -847,41 +887,88 @@ class ResourceDatastream implements Datastream
                         case 'raw':
                             //  Data is buffered as a string of bytes, and read(1)
                             //  returns the next byte.
-                            if ( $this->_flags & static::STREAMOPT_CHARMODE ) {
-                                $this->_read_buffer = implode('', $this->_read_buffer);
-                            }
-                            else if ( $this->_flags & static::STREAMOPT_LINEMODE ) {
-                                $this->_read_buffer = implode("\n", $this->_read_buffer);
+                            if ( $this->_flags & static::STREAMOPT_RAWMODE ) {
+                                break(2);
                             }
                             $new_mode_flag = static::STREAMOPT_RAWMODE;
+                            if ( is_array($this->_read_cache) ) {
+                                $delim = '';
+                                if ( $this->_flags & static::STREAMOPT_LINEMODE ) {
+                                    $delim = "\n";
+                                }
+                                $this->_read_cache_position = strlen(implode($delim, array_slice($this->_read_cache, 0, $this->_read_cache_position)));
+                                $this->_read_cache = implode($delim, $this->_read_cache);
+                            }
                             break;
                         case 'char':
                             //  Data is buffered as an array of characters.
                             //  Multibyte charset support is implied.
                             //  read(1) returns the next character.
+                            if ( $this->_flags & static::STREAMOPT_CHARMODE ) {
+                                break(2);
+                            }
+                            $new_mode_flag = static::STREAMOPT_CHARMODE;
                             if ( $this->_flags & static::STREAMOPT_LINEMODE ) {
                                 //  Convert to raw, then will be converted to chars.
-                                $this->_read_buffer = implode("\n", $this->_read_buffer);
+                                $this->_read_cache_position = strlen(implode("\n", array_slice($this->_read_cache, 0, $this->_read_cache_position)));
+                                $this->_read_cache = implode("\n", $this->_read_cache);
+                                if ( $this->_read_cache_position > 0 ) {
+                                    //  A newline has just been inserted at the
+                                    //  current read position, so the index needs
+                                    //  to be advanced one.
+                                    $this->_read_cache_position++;
+                                }
                                 $this->_flags |= static::STREAMOPT_RAWMODE;
                             }
                             if ( $this->_flags & static::STREAMOPT_RAWMODE ) {
-                                //  $this->_read_buffer = preg_split('//u', $this->_read_buffer, null, PREG_SPLIT_NO_EMPTY)
-                                //  TODO
-                                //      Need support here for UTF-8 and other encodings.
-                                $this->_read_buffer = explode('', $this->_read_buffer);
+                                $this->_read_cache_position = Multibyte::strlen(Multibyte::strcut($this->_read_cache, 0, $this->_read_cache_position, $this->_charset));
+                                $this->_read_cache = Multibyte::str_split($this->_read_cache, 1, $this->_charset);
                             }
-                            $new_mode_flag = static::STREAMOPT_CHARMODE;
                             break;
                         case 'line':
                             //  Data is buffered as an array of lines separated
                             //  by "\n". read(1) returns the next line.
-                            if ( $this->_flags & static::STREAMOPT_RAWMODE ) {
-                                $this->_read_buffer = explode("\n", $this->_read_buffer);
-                            }
-                            else if ( $this->_flags & static::STREAMOPT_CHARMODE ) {
-                                $this->_read_buffer = explode("\n", implode('', $this->_read_buffer));
+                            //  WARNING WARNING WARNING WARNING
+                            //  This mode switch WILL add line breaks to your data
+                            //  if your application has read() into the middle of
+                            //  a line.
+                            if ( $this->_flags & static::STREAMOPT_LINEMODE ) {
+                                break(2);
                             }
                             $new_mode_flag = static::STREAMOPT_LINEMODE;
+                            if ( $this->_flags & static::STREAMOPT_RAWMODE ) {
+                                if ( strlen($this->_read_cache) === 0 ) {
+                                    $this->_read_cache = [];
+                                    break;
+                                }
+                                if ( $this->_read_cache_position === 0 || $this->_read_cache_position >= strlen($this->_read_cache) ) {
+                                    $this->_read_cache = preg_split("/\r?\n/", $this->_read_cache);
+                                    if ( $this->_read_cache_position > 0 ) {
+                                        $this->_read_cache_position = count($this->_read_cache);
+                                    }
+                                }
+                                else {
+                                    $read_lines = $this->_read_cache_position === 0 ? [] : preg_split("/\r?\n/", substr($this->_read_cache, 0, $this->_read_cache_position));
+                                    $this->_read_cache = array_merge($read_lines, preg_split("/\r?\n/", substr($this->_read_cache, $this->_read_cache_position)));
+                                    $this->_read_cache_position = count($read_lines);
+                                }
+                            }
+                            else if ( $this->_flags & static::STREAMOPT_CHARMODE ) {
+                                if ( count($this->_read_cache) === 0 ) {
+                                    break;
+                                }
+                                if ( $this->_read_cache_position === 0 || $this->_read_cache_position >= count($this->_read_cache) ) {
+                                    $this->_read_cache = preg_split("/\r?\n/", implode('', $this->_read_cache));
+                                    if ( $this->_read_cache_position > 0 ) {
+                                        $this->_read_cache_position = count($this->_read_cache);
+                                    }
+                                }
+                                else {
+                                    $read_lines = $this->_read_cache_position === 0 ? [] : preg_split("/\r?\n/", implode('', array_slice($this->_read_cache, 0, $this->_read_cache_position)));
+                                    $this->_read_cache = array_merge($read_lines, preg_split("/\r?\n/", implode('', array_slice($this->_read_cache, $this->_read_cache_position))));
+                                    $this->_read_cache_position = count($read_lines);
+                                }
+                            }
                             break;
                         default:
                             throw new RuntimeException("\"$value\" is not a valid value for a stream mode option");
@@ -891,20 +978,38 @@ class ResourceDatastream implements Datastream
                     break;
                 case 'read-chunk-size':
                     if ( ! is_int($value) || $value < 1 ) {
-                        throw new RuntimeException("\"$value\" is not a valid value for a stream's read-chunk-size", EINVAL);
+                        throw new RuntimeException("\"$value\" is not a valid value for a ResourceDatastream's $option", EINVAL);
                     }
                     $this->_read_chunk_size = $value;
                     break;
-                case 'read-buffer-size':
-                    //  The size limit of the internal read buffer.
+                case 'read-cache-count':
+                    //  The size limit of the internal read cache.
                     //  0 makes it unlimited.
+                    //  This is a "soft" limit; if the application attempts
+                    //  to read more than is allowed by read-cache-size,
+                    //  the cache will hold that much data until the next read.
                     if ( ! is_int($value) || $value < 0 ) {
-                        throw new RuntimeException("\"$value\" is not a valid value for a stream's read-buffer-size", EINVAL);
+                        throw new RuntimeException("\"$value\" is not a valid value for a ResourceDatastream's $option", EINVAL);
                     }
-                    $this->_read_buffer_size = $value;
+                    $this->_read_cache_max_count = $value;
                     break;
                 case 'charset':
-                    $this->_charset = strtolower($value);
+                    if ( ! Multibyte::supported_encoding($value) ) {
+                        throw new RuntimeException("\"$value\" is not a supported encoding in this runtime environment", EINVAL);
+                    }
+                    $this->_charset = $value;
+                    break;
+                case 'tracking':
+                    //  Internally track the line and character offset of read()
+                    //  operations and make them available through the position()
+                    //  function. Tracking only works on "char" mode streams.
+                    if ( $value !== true && $value !== false ) {
+                        throw new RuntimeException("A true or false boolean value is required for the \"$option\" option", EINVAL);
+                    }
+                    $this->_flags &= ~static::STREAMOPT_TRACKING;
+                    if ( $value ) {
+                        $this->_flags |= static::STREAMOPT_TRACKING;
+                    }
                     break;
                 default:
                     throw new RuntimeException("Unrecognized option: $option", EINVAL);
@@ -914,12 +1019,12 @@ class ResourceDatastream implements Datastream
 
 
     /**
-     * Return the current line number and position of the datastream, if line
+     * Return the current line number and position of the datastream if line
      * tracking has been enabled.
      *
      * @return  array
      */
-    public function position ()
+    public function position () : array
     {
         return ['line' => $this->_line, 'position' => $this->_position];
     }
@@ -933,8 +1038,24 @@ class ResourceDatastream implements Datastream
      */
     public function close ()
     {
-        $this->_functions[static::STREAM_CLOSEF]();
-        $this->_state |= Datastream::STREAM_CLOSED;
+        if ( ($this->_state & Datastream::STREAM_UNOPENED) || ($this->_state & Datastream::STREAM_CLOSED) ) {
+            return;
+        }
+        //  Free up some memory.
+        $this->_flags               = 0;
+        $this->_read_buffer         = '';
+        $this->_read_buffer_size    = 0;
+        $this->_read_cache          = null;
+        $this->_read_cache_position = 0;
+        $this->_read_buffer_size    = 0;
+        $this->_state              &= ~Datastream::STREAM_CONNECTED;
+        $this->_state              |= Datastream::STREAM_CLOSED;
+        if ( $this->_name === 'STDOUT' || $this->_name === 'STDERR' || $this->_name === 'STDIN' ) {
+            return;
+        }
+        if ( $this->_type === Datastream::STREAM_FILE ) {
+            @fclose($this->_connection);
+        }
     }
 
 }
