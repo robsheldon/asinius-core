@@ -476,3 +476,18 @@ trait DatastreamLogging
     //  need to store, broadcast, and return errors and other messages.
 
 }
+
+
+/*******************************************************************************
+*                                                                              *
+*   Bootstrap.                                                                 *
+*   If a Composer autoloader isn't already present, then Asinius will          *
+*   install its own autoloader.                                                *
+*                                                                              *
+*******************************************************************************/
+
+if ( empty(array_filter(spl_autoload_functions(), function($loader){
+    return is_callable($loader, false, $loader_name) && strpos($loader_name, 'Composer\\') === 0;
+})) ) {
+    Asinius::init_autoloader();
+}

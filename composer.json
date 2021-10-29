@@ -9,8 +9,7 @@
         "psr-4": {
             "Asinius\\": "src/Asinius/"
         },
-        "files": ["src/Asinius/Asinius.php"],
-        "exclude-from-classmap": ["src/Asinius/autoload.php"]
+        "files": ["src/Asinius/Asinius.php"]
     },
     "config": {
         "optimize-autoloader": true
