@@ -141,7 +141,7 @@ class Asinius
         if ( count($classfile) < 2 ) {
             $path = implode(DIRECTORY_SEPARATOR, [self::$_path_prefix, 'core', 'src', 'Asinius']);
         }
-        else if ( in_array($classfile[0], ['Datastream']) ) {
+        else if ( in_array($classfile[0], ['Datastream', 'Network']) ) {
             //  These are other classes that are part of the core class hierarchy.
             $path = implode(DIRECTORY_SEPARATOR, [self::$_path_prefix, 'core', 'src', 'Asinius', array_shift($classfile)]);
         }
