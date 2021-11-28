@@ -46,17 +46,24 @@ use Asinius\DatastreamProperties;
  * @property    string      $as_string
  * @property    array       $octets
  */
-
 class Address
 {
 
     //  Address types.
-    const   NET_ADDR_IP4 =  1;
-    const   NET_ADDR_IP6 =  2;
-    const   NET_ADDR_MAC =  3;
+    const   NET_ADDR_UNDEFINED  = 0;
+    const   NET_ADDR_IP4        = 1;
+    const   NET_ADDR_IP6        = 2;
+    const   NET_ADDR_MAC        = 3;
 
     use DatastreamProperties;
 
+    /**
+     * Return a new \Asinius\Network\Address
+     *
+     * @param   mixed       $address
+     *
+     * @throws  RuntimeException
+     */
     public function __construct ($address)
     {
         //  This class constructor here is essentially a gigantic network address
@@ -67,7 +74,9 @@ class Address
             $this->__set('octets', unpack('C*', inet_pton($this->__get('as_string'))));
         }
         else if ( is_string($address) ) {
-            $this->__set('as_string', '');
+            $this->__set('type', Address::NET_ADDR_UNDEFINED);
+            $input = $address;
+            $address = strtolower($address);
             if (
                 filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 | FILTER_NULL_ON_FAILURE) !== null ||
                 //	filter_var(..., FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) breaks
@@ -75,22 +84,20 @@ class Address
                 preg_match('/^([0-9]{1,3}\.){3}[0-9]{1,3}$/', $address) && count(array_filter(explode('.', $address), function($o){return ($o = intval($o)) >= 0 && $o <= 255;})) === 4
             ) {
                 $this->__set('type', Address::NET_ADDR_IP4);
-                $this->__set('as_string', $address);
-                $this->__set('octets', unpack('C*', inet_pton($address)));
+                $this->__set('octets', array_values(unpack('C*', inet_pton($address))));
             }
             else if ( filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6 | FILTER_NULL_ON_FAILURE) !== null ) {
                 $this->__set('type', Address::NET_ADDR_IP6);
-                $this->__set('as_string', $address);
-                $this->__set('octets', unpack('C*', inet_pton($address)));
+                $this->__set('octets', array_values(unpack('C*', inet_pton($address))));
             }
             else if ( filter_var($address, FILTER_VALIDATE_MAC, FILTER_NULL_ON_FAILURE) !== null ) {
                 $this->__set('type', Address::NET_ADDR_MAC);
-                $this->__set('as_string', $address);
-                $this->__set('octets', explode(':', $address));
+                $this->__set('octets', array_map('hexdec', explode(':', $address)));
             }
-            if ( $this->__get('as_string') === '' ) {
-                throw new RuntimeException("Not a valid network address: $address");
+            if ( $this->__get('type') === Address::NET_ADDR_UNDEFINED ) {
+                throw new RuntimeException("Not a valid network address: $input");
             }
+            $this->__set('as_string', $address);
         }
         else {
             throw new RuntimeException('Input type not supported: ' . gettype($address));
@@ -103,6 +110,11 @@ class Address
     }
 
 
+    /**
+     * Return the text form of the network address in a string context.
+     *
+     * @return  string
+     */
     public function __toString() {
         return $this->__get('as_string');
     }
