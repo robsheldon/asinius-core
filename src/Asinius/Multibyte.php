@@ -93,6 +93,12 @@ class Multibyte
      */
     public static function strlen (string $string, string $encoding = null) : string
     {
+        if ( $encoding === null ) {
+            //  There seems to be a problem in PHP ~7.3 where passing a null
+            //  $encoding parameter is causing an E_WARNING instead of using
+            //  the internal encoding.
+            $encoding = mb_internal_encoding();
+        }
         return mb_strlen($string, $encoding);
     }
 
@@ -112,6 +118,12 @@ class Multibyte
      */
     public static function strcut (string $string, int $start, int $length = null, string $encoding = null) : string
     {
+        if ( $encoding === null ) {
+            //  There seems to be a problem in PHP ~7.3 where passing a null
+            //  $encoding parameter is causing an E_WARNING instead of using
+            //  the internal encoding.
+            $encoding = mb_internal_encoding();
+        }
         return mb_strcut($string, $start, $length, $encoding);
     }
 

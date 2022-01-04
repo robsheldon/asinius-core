@@ -103,7 +103,7 @@ class Resource implements Datastream
     protected $_read_cache_max_count    = 0;
     protected $_write_buffer            = '';
     //  Support for different character encodings during read() operations.
-    protected $_charset                 = 'ascii';
+    protected $_charset                 = 'ASCII';
     //  The maximum number of bytes requested for each read() operation.
     //  Default is the size of a typical OS memory page.
     protected $_read_chunk_size         = 4096;
@@ -822,7 +822,7 @@ class Resource implements Datastream
                     if ( strlen($this->_read_buffer) < ($remaining * 1.5) ) {
                         $last_read_count = $this->_readf();
                     }
-                    $chunk = Multibyte::strcut($this->_read_buffer, 0, $remaining * 1.5);
+                    $chunk = Multibyte::strcut($this->_read_buffer, 0, $remaining * 1.5, $this->_charset);
                     $this->_read_buffer = substr($this->_read_buffer, strlen($chunk));
                     $this->_read_cache = array_merge($this->_read_cache, Multibyte::str_split($chunk, 1, $this->_charset));
                     break;
@@ -930,7 +930,7 @@ class Resource implements Datastream
                                 $this->_flags |= static::STREAMOPT_RAWMODE;
                             }
                             if ( $this->_flags & static::STREAMOPT_RAWMODE ) {
-                                $this->_read_cache_position = Multibyte::strlen(Multibyte::strcut($this->_read_cache, 0, $this->_read_cache_position, $this->_charset));
+                                $this->_read_cache_position = Multibyte::strlen(Multibyte::strcut($this->_read_cache, 0, $this->_read_cache_position, $this->_charset), $this->_charset);
                                 $this->_read_cache = Multibyte::str_split($this->_read_cache, 1, $this->_charset);
                             }
                             break;
@@ -1005,6 +1005,9 @@ class Resource implements Datastream
                 case 'charset':
                     if ( ! Multibyte::supported_encoding($value) ) {
                         throw new RuntimeException("\"$value\" is not a supported encoding in this runtime environment", EINVAL);
+                    }
+                    if ( empty($value) ) {
+                        throw new RuntimeException("WTF?");
                     }
                     $this->_charset = $value;
                     break;
