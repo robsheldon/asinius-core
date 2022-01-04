@@ -1,10 +1,10 @@
 <?php
 
-namespace Asinius\tests\units;
+namespace Asinius\Datastream\tests\units;
 
 use atoum;
 
-class ResourceDatastream extends atoum
+class Resource extends atoum
 {
 
     private $_files = [];
@@ -13,7 +13,7 @@ class ResourceDatastream extends atoum
     {
         //  ?
         $this->_files['01.txt'] = [
-            'path'      => realpath(dirname(__FILE__) . '/../data/01.txt'),
+            'path'      => realpath(dirname(__FILE__) . '/../../data/01.txt'),
             'raw_data'  => "1\n2 a\n3 b\n4 5 6\n",
             'line_data' => ['1', '2 a', '3 b', '4 5 6'],
             'char_data' => ['1', "\n", '2', ' ', 'a', "\n", '3', ' ', 'b', "\n", '4', ' ', '5', ' ', '6', "\n"],
@@ -25,9 +25,9 @@ class ResourceDatastream extends atoum
     public function getFileByPath ($which)
     {
         if ( ! array_key_exists($which, $this->_files) ) {
-            throw new \RuntimeException("Error in ResourceDatastream test suite: $which is not in the list of data files");
+            throw new \RuntimeException("Error in Resource test suite: $which is not in the list of data files");
         }
-        return new \Asinius\ResourceDatastream($this->_files[$which]['path']);
+        return new \Asinius\Datastream\Resource($this->_files[$which]['path']);
     }
 
 
@@ -35,7 +35,7 @@ class ResourceDatastream extends atoum
     {
         foreach ($this->_files as $filename => $fileinfo) {
             $file = $this->getFileByPath($filename);
-            $this->object($file)->isInstanceOf('\Asinius\ResourceDatastream');
+            $this->object($file)->isInstanceOf('\Asinius\Datastream\Resource');
             $file->open();
             $this->boolean($file->ready())->isTrue();
             $file->close();

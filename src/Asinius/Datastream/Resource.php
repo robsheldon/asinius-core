@@ -2,7 +2,7 @@
 
 /*******************************************************************************
 *                                                                              *
-*   Asinius\ResourceDatastream                                                 *
+*   Asinius\Datastream\Resource                                                *
 *                                                                              *
 *   This class implements the Datastream interface for PHP resource values --  *
 *   files, pipes, and network sockets. It is intended to be able to read from  *
@@ -11,7 +11,7 @@
 *                                                                              *
 *   IMPLEMENTATION NOTES                                                       *
 *                                                                              *
-*   When reading, a ResourceDatastream stores data in two buffer-like          *
+*   When reading, a Resource Datastream stores data in two buffer-like         *
 *   structures: the read buffer and the read cache. The read buffer is a raw   *
 *   store of bytes read from the connection endpoint. The read cache contains  *
 *   data processed from the read buffer into whatever format the application   *
@@ -26,7 +26,7 @@
 *                                                                              *
 *   LICENSE                                                                    *
 *                                                                              *
-*   Copyright (c) 2021 Rob Sheldon <rob@robsheldon.com>                        *
+*   Copyright (c) 2022 Rob Sheldon <rob@robsheldon.com>                        *
 *                                                                              *
 *   Permission is hereby granted, free of charge, to any person obtaining a    *
 *   copy of this software and associated documentation files (the "Software"), *
@@ -52,16 +52,22 @@
 
 namespace Asinius;
 
-use RuntimeException;
+namespace Asinius\Datastream;
+
+use RuntimeException,
+    Asinius\Datastream as Datastream,
+    Asinius\DatastreamProperties as DatastreamProperties,
+    Asinius\Functions as Functions,
+    Asinius\Multibyte as Multibyte;
 
 
 /*******************************************************************************
 *                                                                              *
-*   \Asinius\ResourceDatastream                                                *
+*   \Asinius\Datastream\Resource                                               *
 *                                                                              *
 *******************************************************************************/
 
-class ResourceDatastream implements Datastream
+class Resource implements Datastream
 {
 
     //  Wrapper functions.
@@ -421,13 +427,13 @@ class ResourceDatastream implements Datastream
             case Datastream::STREAM_GENERIC:
                 //  Need to figure out what to do here.
             default:
-                throw new RuntimeException(sprintf('Oops: read() and peek() are not supported on this ResourceDatastream->_type (%s)', $this->_type));
+                throw new RuntimeException(sprintf('Oops: read() and peek() are not supported on this Resource->_type (%s)', $this->_type));
         }
     }
 
 
     /**
-     * Return a new \Asinius\ResourceDatastream.
+     * Return a new \Asinius\Resource.
      *
      * @param   mixed       $resource
      *
@@ -838,7 +844,7 @@ class ResourceDatastream implements Datastream
                     }
                     break;
                 default:
-                    throw new RuntimeException(sprintf('Oops: ResourceDatastream->_flags has an invalid mode (%s)', $this->_flags & static::STREAMOPT_MODEMASK));
+                    throw new RuntimeException(sprintf('Oops: Resource->_flags has an invalid mode (%s)', $this->_flags & static::STREAMOPT_MODEMASK));
             }
         }
     }
@@ -981,7 +987,7 @@ class ResourceDatastream implements Datastream
                     break;
                 case 'read-chunk-size':
                     if ( ! is_int($value) || $value < 1 ) {
-                        throw new RuntimeException("\"$value\" is not a valid value for a ResourceDatastream's $option", EINVAL);
+                        throw new RuntimeException("\"$value\" is not a valid value for a Resource's $option", EINVAL);
                     }
                     $this->_read_chunk_size = $value;
                     break;
@@ -992,7 +998,7 @@ class ResourceDatastream implements Datastream
                     //  to read more than is allowed by read-cache-size,
                     //  the cache will hold that much data until the next read.
                     if ( ! is_int($value) || $value < 0 ) {
-                        throw new RuntimeException("\"$value\" is not a valid value for a ResourceDatastream's $option", EINVAL);
+                        throw new RuntimeException("\"$value\" is not a valid value for a Resource's $option", EINVAL);
                     }
                     $this->_read_cache_max_count = $value;
                     break;
@@ -1050,7 +1056,6 @@ class ResourceDatastream implements Datastream
         $this->_read_buffer_size    = 0;
         $this->_read_cache          = null;
         $this->_read_cache_position = 0;
-        $this->_read_buffer_size    = 0;
         $this->_state              &= ~Datastream::STREAM_CONNECTED;
         $this->_state              |= Datastream::STREAM_CLOSED;
         if ( $this->_name === 'STDOUT' || $this->_name === 'STDERR' || $this->_name === 'STDIN' ) {
