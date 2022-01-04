@@ -752,7 +752,13 @@ class Resource implements Datastream
             }
             $this->_position += $n;
         }
-        return $out;
+        //  Return the first element of $out if the read count is 1.
+        //  I'm not sure about this decision. On the one hand, I don't
+        //  like returning a string sometimes and an array sometimes.
+        //  On the other, I hate constantly dereferencing ->read()[0]
+        //  in application code (and checking to make sure that read()
+        //  has returned an array with at least one element first).
+        return ( $count === 1 && is_array($out) && count($out) > 0 ) ? $out[0] : $out;
     }
 
 
@@ -794,7 +800,8 @@ class Resource implements Datastream
                 }
                 //  Return whatever is in the cache.
                 if ( $cache_is_array ) {
-                    return array_slice($this->_read_cache, $this->_read_cache_position, min($count, $cache_size - $this->_read_cache_position));
+                    $out = array_slice($this->_read_cache, $this->_read_cache_position, min($count, $cache_size - $this->_read_cache_position));
+                    return ( $count === 1 && count($out) > 0 ) ? $out[0] : $out;
                 }
                 return substr($this->_read_cache, $this->_read_cache_position, min($count, $cache_size - $this->_read_cache_position));
             }
