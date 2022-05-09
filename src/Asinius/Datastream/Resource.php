@@ -50,8 +50,6 @@
 *                                                                              *
 *******************************************************************************/
 
-namespace Asinius;
-
 namespace Asinius\Datastream;
 
 use RuntimeException,
@@ -369,6 +367,10 @@ class Resource implements Datastream
                     $this->_state &= ~Datastream::STREAM_WRITABLE;
                 }
                 if ( @feof($this->_connection) ) {
+                    //  It's tempting to cache this or close the Datastream at
+                    //  this point, but it's possible for an application to be
+                    //  reading a file that is being appended by another process,
+                    //  so let's re-check for eof on each call to be safe.
                     return 0;
                 }
                 $chunk = @fread($this->_connection, $this->_read_chunk_size);
@@ -422,6 +424,21 @@ class Resource implements Datastream
             return $bytes;
         }
         throw new RuntimeException('_writef() has not been implemented for this type of stream', ENOSYS);
+    }
+
+
+    /**
+     * Return true if EOF, on supported streams. On non-supported streams,
+     * return false.
+     *
+     * @return  boolean
+     */
+    protected function _eof () : bool
+    {
+        if ( $this->_type === Datastream::STREAM_FILE && $this->_state & Datastream::STREAM_READABLE ) {
+            return feof($this->_connection);
+        }
+        return false;
     }
 
 
@@ -851,7 +868,8 @@ class Resource implements Datastream
                             unset($lines[$n-1]);
                             $this->_read_cache = array_merge($this->_read_cache, $lines);
                         }
-                        else if ( $last_read_count === 0 && $n > 0 && $this->_type === Datastream::STREAM_FILE && $this->_read_buffer !== '' ) {
+                        if ( $this->_read_buffer !== '' && $this->_eof() ) {
+                            //  Soak up the last line of the file.
                             $this->_read_cache[] = $this->_read_buffer;
                             $this->_read_buffer = '';
                         }
@@ -903,7 +921,7 @@ class Resource implements Datastream
                 //  TODO: It would be cool to take advantage of PHP 8.1's new
                 //  Fibers feature here and not block the application while the
                 //  i/o is completed.
-                var_dump($data->mode);
+                $delimiter = $data->mode === 'line' ? "\n" : '';
                 while ( ($chunk = $data->read()) !== null ) {
                     //  I'm choosing to recurse here to prevent sponging up
                     //  enormous amounts of data from an input source only to
@@ -915,7 +933,7 @@ class Resource implements Datastream
                         break;
                     }
                     foreach ($chunk as $part) {
-                        $this->write($part);
+                        $this->write($part . $delimiter);
                     }
                 }
                 break;
@@ -1002,7 +1020,7 @@ class Resource implements Datastream
                                     }
                                 }
                                 else {
-                                    $read_lines = $this->_read_cache_position === 0 ? [] : preg_split("/\r?\n/", substr($this->_read_cache, 0, $this->_read_cache_position));
+                                    $read_lines = preg_split("/\r?\n/", substr($this->_read_cache, 0, $this->_read_cache_position));
                                     $this->_read_cache = array_merge($read_lines, preg_split("/\r?\n/", substr($this->_read_cache, $this->_read_cache_position)));
                                     $this->_read_cache_position = count($read_lines);
                                 }
@@ -1018,7 +1036,7 @@ class Resource implements Datastream
                                     }
                                 }
                                 else {
-                                    $read_lines = $this->_read_cache_position === 0 ? [] : preg_split("/\r?\n/", implode('', array_slice($this->_read_cache, 0, $this->_read_cache_position)));
+                                    $read_lines = preg_split("/\r?\n/", implode('', array_slice($this->_read_cache, 0, $this->_read_cache_position)));
                                     $this->_read_cache = array_merge($read_lines, preg_split("/\r?\n/", implode('', array_slice($this->_read_cache, $this->_read_cache_position))));
                                     $this->_read_cache_position = count($read_lines);
                                 }
@@ -1071,6 +1089,27 @@ class Resource implements Datastream
                 default:
                     throw new RuntimeException("Unrecognized option: $option", EINVAL);
             }
+        }
+    }
+
+
+    /**
+     * Return the current mode for the datastream.
+     *
+     * @throws  RuntimeException
+     *
+     * @return  string
+     */
+    public function get_mode () : string {
+        switch ($this->_flags & static::STREAMOPT_MODEMASK) {
+            case static::STREAMOPT_RAWMODE:
+                return 'raw';
+            case static::STREAMOPT_CHARMODE:
+                return 'char';
+            case static::STREAMOPT_LINEMODE:
+                return 'line';
+            default:
+                throw new RuntimeException(sprintf('Oops: Resource->_flags has an invalid mode (%s)', $this->_flags & static::STREAMOPT_MODEMASK));
         }
     }
 
