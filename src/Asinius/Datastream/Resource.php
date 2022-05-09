@@ -719,6 +719,9 @@ class Resource implements Datastream
      * Return the next bytes, page, row, line, element, etc. Return null when
      * there is no more data to return.
      *
+     * In line mode, the end-of-line delimiter (\r\n or \n) is included at the
+     * end of each line.
+     *
      * @param   int         $count
      *
      * @throws  RuntimeException
@@ -862,10 +865,15 @@ class Resource implements Datastream
                     $lines = 0;
                     while ( ($lines <= 1 || strlen($this->_read_buffer) < ($remaining * 80)) && $last_read_count != 0 ) {
                         $last_read_count = $this->_readf();
-                        $lines = preg_split("/\r?\n/", $this->_read_buffer);
+                        //  The end-of-line delimiter MUST be returned, otherwise
+                        //  there's no way to make write() and read() idempotetent.
+                        //  If a caller write()s the contents of a file read() in
+                        //  line mode, the caller can't know if the file was
+                        //  terminated in a newline or not.
+                        $lines = preg_split("/(\r?\n)/", $this->_read_buffer, 0, PREG_SPLIT_DELIM_CAPTURE);
                         if ( ($n = count($lines)) > 1 ) {
-                            $this->_read_buffer = $lines[$n-1];
-                            unset($lines[$n-1]);
+                            //  Save the last (possibly incomplete) line in the read buffer.
+                            $this->_read_buffer = array_pop($lines);
                             $this->_read_cache = array_merge($this->_read_cache, $lines);
                         }
                         if ( $this->_read_buffer !== '' && $this->_eof() ) {
@@ -921,7 +929,6 @@ class Resource implements Datastream
                 //  TODO: It would be cool to take advantage of PHP 8.1's new
                 //  Fibers feature here and not block the application while the
                 //  i/o is completed.
-                $delimiter = $data->mode === 'line' ? "\n" : '';
                 while ( ($chunk = $data->read()) !== null ) {
                     //  I'm choosing to recurse here to prevent sponging up
                     //  enormous amounts of data from an input source only to
@@ -933,7 +940,7 @@ class Resource implements Datastream
                         break;
                     }
                     foreach ($chunk as $part) {
-                        $this->write($part . $delimiter);
+                        $this->write($part);
                     }
                 }
                 break;
