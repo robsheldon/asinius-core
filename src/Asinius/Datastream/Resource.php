@@ -58,7 +58,8 @@ use RuntimeException,
     Asinius\Datastream as Datastream,
     Asinius\DatastreamProperties as DatastreamProperties,
     Asinius\Functions as Functions,
-    Asinius\Multibyte as Multibyte;
+    Asinius\Multibyte as Multibyte,
+    Asinius\StrictArray as StrictArray;
 
 
 /*******************************************************************************
@@ -69,14 +70,6 @@ use RuntimeException,
 
 class Resource implements Datastream
 {
-
-    //  Wrapper functions.
-    private const STREAM_TIMEOUTF       = 0;
-    private const STREAM_ACCEPTF        = 1;
-    private const STREAM_READF          = 2;
-    private const STREAM_EOFF           = 3;
-    private const STREAM_WRITEF         = 4;
-    private const STREAM_CLOSEF         = 5;
 
     private const STREAMOPT_RAWMODE     = 0b0001;
     private const STREAMOPT_CHARMODE    = 0b0010;
@@ -101,7 +94,15 @@ class Resource implements Datastream
     protected $_read_cache              = null;
     protected $_read_cache_position     = 0;
     protected $_read_cache_max_count    = 0;
+    //  $_write_buffer stores data that's being written. This allows for
+    //  asymmetric read/write operations, for example from a blocking pipe
+    //  to a file (or from a file to a pipe).
     protected $_write_buffer            = '';
+    //  $_data_sources is a list of one or more resource types that have
+    //  been passed to the write() function for this object. They are cached
+    //  here so that they don't get unintentionally closed by __destruct()
+    //  when they get converted into a Datastream.
+    protected $_data_sources            = null;
     //  Support for different character encodings during read() operations.
     protected $_charset                 = 'ASCII';
     //  The maximum number of bytes requested for each read() operation.
@@ -247,52 +248,6 @@ class Resource implements Datastream
 
 
     /**
-     * Install the mid-level wrapper functions for operations like read(),
-     * write(), and close() for this type of Datastream. This approach
-     * streamlines the code a little and allows similar stream types to share
-     * the same functions as appropriate.
-     *
-     * @internal
-     *
-     * @return  void
-     */
-    protected function _install_wrappers ()
-    {
-        //  write():
-        if ( $this->_type === Datastream::STREAM_FILE || $this->_name === 'STDOUT' || $this->_name === 'STDERR' ) {
-            $this->_functions[static::STREAM_WRITEF] = function(){
-                if ( $this->_state & Datastream::STREAM_READABLE ) {
-                    if ( $this->_state & Datastream::STREAM_WRITABLE ) {
-                        //  The first write() operation for a file makes the file
-                        //  write-only for the remainder of the stream.
-                        $this->_state &= ~Datastream::STREAM_READABLE;
-                        if ( $this->_type === Datastream::STREAM_FILE ) {
-                            //  Also, move the file pointer to the end of the file
-                            //  by default.
-                            fseek($this->_connection, 0, SEEK_END);
-                        }
-                    }
-                    else {
-                        throw new RuntimeException("Can't write() to this stream because it is read-only", EACCESS);
-                    }
-                }
-                if ( strlen($this->_write_buffer) < 1 ) {
-                    return 0;
-                }
-                if ( ($bytes = @fwrite($this->_connection, $this->_write_buffer)) > 0 ) {
-                    $this->_write_buffer = (string) substr($this->_write_buffer, $bytes);
-                }
-                return $bytes;
-            };
-            if ( $this->_name === 'STDOUT' || $this->_name === 'STDERR' ) {
-                //  These pipes are write-only.
-                $this->_state &= ~Datastream::STREAM_READABLE;
-            }
-        }
-    }
-
-
-    /**
      * This function allows non-blocking streams to behave like blocking streams
      * with a timeout. It ALMOST isn't necessary here, except for STDIN, which
      * will block by default.
@@ -433,6 +388,44 @@ class Resource implements Datastream
 
 
     /**
+     * Write raw data from the internal write buffer, returning the number of
+     * bytes written.
+     *
+     * @internal
+     *
+     * @throws  RuntimeException
+     *
+     * @return  int
+     */
+    protected function _writef () : int
+    {
+        if ( $this->_type === Datastream::STREAM_FILE || $this->_name === 'STDOUT' || $this->_name === 'STDERR' ) {
+            if ( $this->_state & Datastream::STREAM_READABLE ) {
+                if ( ! $this->_state & Datastream::STREAM_WRITABLE ) {
+                    throw new RuntimeException("Can't write() to this stream because it is read-only", EACCESS);
+                }
+                //  The first write() operation for a file makes the file
+                //  write-only for the remainder of the stream.
+                $this->_state &= ~Datastream::STREAM_READABLE;
+                if ( $this->_type === Datastream::STREAM_FILE ) {
+                    //  Also, move the file pointer to the end of the file
+                    //  by default.
+                    fseek($this->_connection, 0, SEEK_END);
+                }
+            }
+            if ( strlen($this->_write_buffer) < 1 ) {
+                return 0;
+            }
+            if ( ($bytes = @fwrite($this->_connection, $this->_write_buffer)) > 0 ) {
+                $this->_write_buffer = (string) substr($this->_write_buffer, $bytes);
+            }
+            return $bytes;
+        }
+        throw new RuntimeException('_writef() has not been implemented for this type of stream', ENOSYS);
+    }
+
+
+    /**
      * Return a new \Asinius\Resource.
      *
      * @param   mixed       $resource
@@ -447,7 +440,7 @@ class Resource implements Datastream
         //  Start the Datastream in raw mode.
         $this->_flags |= static::STREAMOPT_RAWMODE;
         $this->_read_buffer = '';
-        $this->_install_wrappers();
+        $this->_data_sources = new StrictArray();
         if ( is_string($resource) ) {
             $this->_name = $resource;
             if ( ($resource === 'STDIN' || $resource === 'STDOUT' || $resource === 'STDERR') && ! defined($resource) ) {
@@ -564,6 +557,10 @@ class Resource implements Datastream
             //  STDIN is also read-only.
             $this->_state &= ~Datastream::STREAM_WRITABLE;
         }
+        else if ( $this->_name === 'STDOUT' || $this->_name === 'STDERR' ) {
+            //  These pipes are write-only.
+            $this->_state &= ~Datastream::STREAM_READABLE;
+        }
     }
 
 
@@ -649,7 +646,6 @@ class Resource implements Datastream
         }
         //  Install the mid-level stream operation functions that are appropriate
         //  for this type of stream.
-        $this->_install_wrappers();
         $this->_state &= ~Datastream::STREAM_UNOPENED;
         $this->_state |= Datastream::STREAM_CONNECTED;
     }
@@ -728,7 +724,18 @@ class Resource implements Datastream
             return null;
         }
         //  Advance the internal read cache index.
-        $i = is_array($out) ? count($out) : strlen($out);
+        if ( is_array($this->_read_cache) ) {
+            if ( $count === 1 && ! is_array($out) ) {
+                $out = [$out];
+            }
+            $i = count($out);
+        }
+        else if ( is_string($out) ) {
+            $i = strlen($out);
+        }
+        else {
+            throw new RuntimeException("Internal logical error in read(): type mismatch between _read_cache and peek()", EUNDEF);
+        }
         $this->_read_cache_position += $i;
         //  If position tracking is enabled, do the expensive counting now.
         if ( $i > 0 && $this->_flags & (static::STREAMOPT_TRACKING | static::STREAMOPT_CHARMODE) ) {
@@ -778,23 +785,24 @@ class Resource implements Datastream
         if ( ! $this->ready() ) {
             throw new RuntimeException('peek(): stream is not connected', ENOTCONN);
         }
+        if ( $count < 0 ) {
+            return null;
+        }
         $last_read_count = -1;
         $cache_is_array = is_array($this->_read_cache);
-        $chunk = '';
         while ( true ) {
             //  Estimate how much data is still needed.
             $cache_size = $cache_is_array ? count($this->_read_cache) : strlen($this->_read_cache);
             $remaining = $count - $cache_size + $this->_read_cache_position;
             //  1. Return null if:
-            //      a. $count is not valid;
-            //      b. No data was read and no data is available in the connection.
+            //      a. No data was read and no data is available in the connection.
             //  2. Return some or all of the read cache if:
             //      a. The requested data is already in the cache;
             //      b. Some data was read from the connection but no more is available;
             //      c. Data has been read from the connection and it satisfies the request.
-            if ( $count <= 0 || $last_read_count === 0 || $remaining <= 0 ) {
+            if ( $last_read_count === 0 || $remaining <= 0 ) {
                 //  No more data available (at this time?).
-                if ( $count <= 0 || $remaining === $count ) {
+                if ( $remaining === $count ) {
                     //  Signal that peek() failed to retrieve any data.
                     return null;
                 }
@@ -834,20 +842,19 @@ class Resource implements Datastream
                     $this->_read_cache = array_merge($this->_read_cache, Multibyte::str_split($chunk, 1, $this->_charset));
                     break;
                 case static::STREAMOPT_LINEMODE:
-                    if ( strlen($this->_read_buffer) < ($remaining * 80) ) {
+                    $lines = 0;
+                    while ( ($lines <= 1 || strlen($this->_read_buffer) < ($remaining * 80)) && $last_read_count != 0 ) {
                         $last_read_count = $this->_readf();
-                    }
-                    $lines = preg_split("/\r?\n/", $this->_read_buffer);
-                    if ( ($n = count($lines)) === 1 ) {
-                        $chunk .= $lines[0];
-                        $this->_read_buffer = '';
-                    }
-                    else {
-                        $lines[0] = $chunk . $lines[0];
-                        $chunk = '';
-                        $this->_read_buffer = $lines[$n-1];
-                        unset($lines[$n-1]);
-                        $this->_read_cache = array_merge($this->_read_cache, $lines);
+                        $lines = preg_split("/\r?\n/", $this->_read_buffer);
+                        if ( ($n = count($lines)) > 1 ) {
+                            $this->_read_buffer = $lines[$n-1];
+                            unset($lines[$n-1]);
+                            $this->_read_cache = array_merge($this->_read_cache, $lines);
+                        }
+                        else if ( $last_read_count === 0 && $n > 0 && $this->_type === Datastream::STREAM_FILE && $this->_read_buffer !== '' ) {
+                            $this->_read_cache[] = $this->_read_buffer;
+                            $this->_read_buffer = '';
+                        }
                     }
                     break;
                 default:
@@ -882,8 +889,39 @@ class Resource implements Datastream
         if ( ! $this->ready() ) {
             throw new RuntimeException('write(): stream is not connected', ENOTCONN);
         }
-        $this->_write_buffer .= $data;
-        return $this->_functions[static::STREAM_WRITEF]();
+        switch (true) {
+            case (is_string($data)):
+                $this->_write_buffer .= $data;
+                $this->_writef();
+                break;
+            case (@is_resource($data)):
+                if ( ! isset($this->_data_sources[$data]) ) {
+                    $this->_data_sources[$data] = new Resource($data);
+                }
+                $data = $this->_data_sources[$data];
+            case (is_a($data, 'Asinius\Datastream\Resource')):
+                //  TODO: It would be cool to take advantage of PHP 8.1's new
+                //  Fibers feature here and not block the application while the
+                //  i/o is completed.
+                var_dump($data->mode);
+                while ( ($chunk = $data->read()) !== null ) {
+                    //  I'm choosing to recurse here to prevent sponging up
+                    //  enormous amounts of data from an input source only to
+                    //  crash the runtime before any of it gets written.
+                    if ( ! is_array($chunk) ) {
+                        $chunk = [$chunk];
+                    }
+                    if ( count($chunk) === 0 ) {
+                        break;
+                    }
+                    foreach ($chunk as $part) {
+                        $this->write($part);
+                    }
+                }
+                break;
+            default:
+                throw new RuntimeException('write() is not supported for this type of data', EINVAL);
+        }
     }
 
 
