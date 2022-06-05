@@ -323,4 +323,53 @@ class Functions
         return (($n = count($value)) == 0) ? null : $value[$n - 1];
     }
 
+
+    /**
+     * Return true if Composer is present.
+     *
+     * @return  boolean
+     */
+    public static function have_composer ()
+    {
+        return class_exists('Composer\Autoload\ClassLoader', false);
+    }
+
+
+    /**
+     * Return true if a class is available (without loading it).
+     *
+     * This function performs a little bit of guesswork and will return some
+     * false negative results in applications with custom autoloaders.
+     *
+     * It is identical to class_exists(), except that in common Composer
+     * environments, it can search for a classmap without needing to load
+     * the class being searched for.
+     *
+     * @param   string      $classname
+     * @param   boolean     $allow_loading
+     *
+     * @return  boolean
+     */
+    public static function class_available ($classname, $allow_loading = false)
+    {
+        if ( class_exists($classname, $allow_loading) ) {
+            return true;
+        }
+        if ( static::have_composer() ) {
+            //  Composer may have a classmap available that can be interrogated
+            //  without loading the class in question.
+            $composer_initer = array_values(preg_grep('/^ComposerAutoloaderInit[0-9a-f]{32}$/', get_declared_classes()));
+            if ( count($composer_initer) === 1 ) {
+                $composer_initer = array_shift($composer_initer);
+                //  This is very naughty (and only works in some common Composer
+                //  configurations).
+                $class_map = $composer_initer::getLoader()->getClassMap();
+                if ( array_key_exists($classname, $class_map) ) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
 }
