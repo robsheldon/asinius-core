@@ -35,6 +35,8 @@
 
 namespace Asinius;
 
+use RuntimeException;
+
 
 /*******************************************************************************
 *                                                                              *
@@ -72,24 +74,24 @@ class Functions
      * @param   array       $quotes
      * @param   boolean     $strip_delimiter
      *
-     * @throws  \RuntimeException
+     * @throws  RuntimeException
      * 
      * @return  array
      */
-    public static function str_chunk ($string, $delimiters, $limit = 0, $quotes = [], $strip_delimiter = false)
+    public static function str_chunk (string $string, $delimiters, int $limit = 0, array $quotes = [], bool $strip_delimiter = false) : array
     {
         $chunks = [];
         //  Start by decomposing the string into quoted and unquoted chunks.
         //  This is best done by building a yucky regex for preg_split().
         if ( ! empty($quotes) ) {
             if ( ! is_array($quotes) ) {
-                throw new \RuntimeException('$quotes parameter needs to be an array, ' . gettype($quotes) . ' given', EINVAL);
+                throw new RuntimeException('$quotes parameter needs to be an array, ' . gettype($quotes) . ' given', EINVAL);
             }
             $regex_quotes = [];
             foreach ($quotes as $quote_delims) {
                 if ( ! is_array($quote_delims) || count($quote_delims) != 2 ) {
                     //  This is an awful error message but the best I can do at the moment.
-                    throw new \RuntimeException('$quotes parameter needs to be an array of array pairs', EINVAL);
+                    throw new RuntimeException('$quotes parameter needs to be an array of array pairs', EINVAL);
                 }
                 list($open, $close) = [preg_quote($quote_delims[0], '/'), preg_quote($quote_delims[1], '/')];
                 $regex_quotes[] = "[$open][^$close]*[$close]";
@@ -115,7 +117,7 @@ class Functions
                 $delimiters = implode('|', array_map(function($delimiter){
                     return preg_quote($delimiter, '/');
                 }, $delimiters));
-                $regex = "/({$delimiters})/";
+                $regex = "/($delimiters)/";
             }
         }
         else {
@@ -131,11 +133,11 @@ class Functions
                 }, $delimiters));
                 //  Okay, this right here is some nightmare fuel. If I'm luckier
                 //  than I deserve, I'll never have to debug this.
-                $regex = "/((?:.(?!{$delimiters}))*(?:(?={$delimiters}).)*.?)/";
+                $regex = "/((?:.(?!$delimiters))*(?:(?=$delimiters).)*.?)/";
             }
         }
         if ( $regex == '' ) {
-            throw new \RuntimeException('$delimiters parameter needs to be a string or an array, ' . gettype($delimiters) . ' given', EINVAL);
+            throw new RuntimeException('$delimiters parameter needs to be a string or an array, ' . gettype($delimiters) . ' given', EINVAL);
         }
         while ( count($quoted_chunks) && ($limit < 1 || count($chunks) < $limit) ) {
             $unquoted_chunks = preg_split($regex, array_shift($quoted_chunks), 0, $flags);
@@ -153,7 +155,7 @@ class Functions
         //  can happen pretty easily with preg_split().
         $chunks = array_merge($chunks, $quoted_chunks);
         if ( $limit > 0 && count($chunks) > $limit ) {
-            $chunks = array_merge($chunks_out = array_splice($chunks, 0, $limit - 1), [implode('', $chunks)]);
+            $chunks = array_merge(array_splice($chunks, 0, $limit - 1), [implode('', $chunks)]);
         }
         return $chunks;
     }
@@ -168,10 +170,11 @@ class Functions
      *
      * @return  int
      */
-    public static function str_matchlen ($string1, $string2)
+    public static function str_matchlen (string $string1, string $string2) : int
     {
+        $i = 0;
         $n = min(strlen($string1), strlen($string2));
-        for ( $i = 0; $i < $n && $string1[$i] === $string2[$i]; $i++ );
+        while ( $i < $n && $string1[$i] === $string2[$i] ) $i++;
         return $i;
     }
 
@@ -181,9 +184,11 @@ class Functions
      * string if the string hasn't already been fully escaped.
      *
      * @param   string      $string
+     * @param   string      $escape_chars
+     *
      * @return  string
      */
-    public static function escape_str ($string, $escape_chars = '\"')
+    public static function escape_str (string $string, string $escape_chars = '\"') : string
     {
         $chunks = static::str_chunk($string, $escape_chars);
         $n = count($chunks);
@@ -213,9 +218,10 @@ class Functions
      * to log some basic stuff to a file or include a value in an error message.
      * 
      * @param   mixed       $thing
+     *
      * @return  string
      */
-    public static function to_str ($thing)
+    public static function to_str ($thing) : string
     {
         switch (true) {
             case (is_string($thing)):
@@ -238,12 +244,12 @@ class Functions
             case (is_array($thing)):
                 if ( static::is_linear_array($thing) ) {
                     $values = array_map(function($element){
-                        return \Asinius\Functions::to_str($element);
+                        return Functions::to_str($element);
                     }, $thing);
                 }
                 else {
                     $values = array_map(function($key, $value){
-                        return \Asinius\Functions::to_str($key) . ' => ' . \Asinius\Functions::to_str($value);
+                        return Functions::to_str($key) . ' => ' . Functions::to_str($value);
                     }, array_keys($thing), array_values($thing));
                 }
                 return '[' . implode(', ', $values) . ']';
@@ -260,7 +266,7 @@ class Functions
      *
      * @return  array
      */
-    public static function utf8_str_split ($string)
+    public static function utf8_str_split (string $string) : array
     {
         return preg_split('//u', $string, null, PREG_SPLIT_NO_EMPTY);
     }
@@ -274,7 +280,7 @@ class Functions
      *
      * @return  boolean
      */
-    public static function is_linear_array ($array)
+    public static function is_linear_array (array $array) : bool
     {
         $keys = array_keys($array);
         return count($keys) == 0 || ($keys[0] == 0 && $keys == range(0, count($keys)-1));
@@ -288,7 +294,7 @@ class Functions
      *
      * @return  array
      */
-    public static function array_nest ($array)
+    public static function array_nest (array $array) : array
     {
         $nested = [];
         while ( count($array) ) {
@@ -307,7 +313,10 @@ class Functions
      */
     public static function first ($value)
     {
-        return count($value) == 0 ? null : $value[0];
+        //  https://stackoverflow.com/a/41795859
+        //  This is fast enough even for large arrays and doesn't require any
+        //  onerous error checking.
+        return array_shift($value);
     }
 
 
@@ -320,7 +329,10 @@ class Functions
      */
     public static function last ($value)
     {
-        return (($n = count($value)) == 0) ? null : $value[$n - 1];
+        //  https://stackoverflow.com/a/41795859
+        //  This is fast enough even for large arrays and doesn't require any
+        //  onerous error checking.
+        return array_pop($value);
     }
 
 
@@ -329,7 +341,7 @@ class Functions
      *
      * @return  boolean
      */
-    public static function have_composer ()
+    public static function have_composer () : bool
     {
         return class_exists('Composer\Autoload\ClassLoader', false);
     }
@@ -338,8 +350,8 @@ class Functions
     /**
      * Return true if a class is available (without loading it).
      *
-     * This function performs a little bit of guesswork and will return some
-     * false negative results in applications with custom autoloaders.
+     * This function performs a little guesswork and will return some false
+     * negative results in applications with custom autoloaders.
      *
      * It is identical to class_exists(), except that in common Composer
      * environments, it can search for a classmap without needing to load
@@ -350,7 +362,7 @@ class Functions
      *
      * @return  boolean
      */
-    public static function class_available ($classname, $allow_loading = false)
+    public static function class_available (string $classname, bool $allow_loading = false) : bool
     {
         if ( class_exists($classname, $allow_loading) ) {
             return true;
