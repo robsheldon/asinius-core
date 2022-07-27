@@ -459,12 +459,12 @@ class Asinius
             case (is_array($thing)):
                 if ( static::is_linear_array($thing) ) {
                     $values = array_map(function($element){
-                        return Functions::to_str($element);
+                        return static::to_str($element);
                     }, $thing);
                 }
                 else {
                     $values = array_map(function($key, $value){
-                        return Functions::to_str($key) . ' => ' . Functions::to_str($value);
+                        return static::to_str($key) . ' => ' . static::to_str($value);
                     }, array_keys($thing), array_values($thing));
                 }
                 return '[' . implode(', ', $values) . ']';
