@@ -181,7 +181,7 @@ class Asinius
             $path .= DIRECTORY_SEPARATOR . $find;
             //  If we've found the thing we're looking for and it's readable,
             //  load it and return.
-            if ( count($classfile) == 0 && array_key_exists($find, $cached) ) {
+            if ( count($classfile) === 0 ) {
                 if ( ! is_readable($path) ) {
                     //  I think it's appropriate to throw an expection here to
                     //  make troubleshooting easier in cases where permissions
@@ -365,7 +365,9 @@ class Asinius
             $chunks = array_merge($chunks, $unquoted_chunks, [array_shift($quoted_chunks)]);
         }
         //  Remove any pollution in the output from array_pop() or bad preg_split() results.
-        $chunks = array_filter($chunks, 'strlen');
+        $chunks = array_filter($chunks, function($chunk){
+            return is_string($chunk) && strlen($chunk) > 0;
+        });
         //  Finally, ensure that the chunk count didn't exceed $limit; this
         //  can happen pretty easily with preg_split().
         $chunks = array_merge($chunks, $quoted_chunks);
