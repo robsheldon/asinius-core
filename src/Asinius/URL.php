@@ -2,15 +2,9 @@
 
 /*******************************************************************************
 *                                                                              *
-*   Asinius\URL                                                                *
-*                                                                              *
-*   URL-handling utility class. Provides some functions for working indirectly *
-*   with other URI-juggling components. URI references are a key part of this  *
-*   library so this is a core component.                                       *
-*                                                                              *
 *   LICENSE                                                                    *
 *                                                                              *
-*   Copyright (c) 2020 Rob Sheldon <rob@rescue.dev>                            *
+*   Copyright (c) 2022 Rob Sheldon <robrobsheldon.com>                         *
 *                                                                              *
 *   Permission is hereby granted, free of charge, to any person obtaining a    *
 *   copy of this software and associated documentation files (the "Software"), *
@@ -36,13 +30,16 @@
 
 namespace Asinius;
 
+use RuntimeException;
 
-/*******************************************************************************
-*                                                                              *
-*   \Asinius\URL                                                               *
-*                                                                              *
-*******************************************************************************/
 
+/**
+ * \Asinius\URL
+ *
+ * URL-handling utility class. Provides some functions for working indirectly
+ * with other URI-juggling components. URI references are a key part of this
+ * library so this is a core component.
+ */
 class URL
 {
 
@@ -842,7 +839,7 @@ class URL
         $parts = [];
         //  During processing, the url will be broken down into "chunks" and then
         //  digested further.
-        $chunks = \Asinius\Functions::str_chunk($url, static::$_valid_chars['url-delimiters'], 0, \Asinius\Functions::DEFAULT_QUOTES);
+        $chunks = Asinius::str_chunk($url, static::$_valid_chars['url-delimiters'], 0, Asinius::DEFAULT_QUOTES);
         while ( ! is_null($chunk = array_shift($chunks)) ) {
             //  These chunks should belong to the authority section of the URL.
             //  Figure out which parts they are from last to first.
@@ -918,7 +915,7 @@ class URL
      * 
      * @param   string      $url
      * 
-     * @return  \Asinius\URL
+     * @return  URL
      */
     public static function parse ($url)
     {
@@ -928,7 +925,7 @@ class URL
             $handler = static::get_handler($url);
             return new $handler($url, $handler);
         }
-        return new \Asinius\URL($url, __CLASS__);
+        return new URL($url, __CLASS__);
     }
 
 
@@ -944,7 +941,7 @@ class URL
     public static function open ($url)
     {
         if ( is_null($handler = static::get_handler($url)) ) {
-            throw new \RuntimeException("Can't open $url: no protocol handler has been registered for this scheme");
+            throw new RuntimeException("Can't open $url: no protocol handler has been registered for this scheme");
         }
         if ( class_exists($handler, true) ) {
             return $handler::open($url);
@@ -955,7 +952,7 @@ class URL
         if ( isset($url->password) && $url->password != '' ) {
             $url->password = '{password}';
         }
-        throw new \RuntimeException("$handler is registered as the protocol handler for $url, but the class can not be found");
+        throw new RuntimeException("$handler is registered as the protocol handler for $url, but the class can not be found");
     }
 
 
@@ -1118,8 +1115,6 @@ class URL
      * 
      * @param   string      $url
      * @param   string      $handler
-     *
-     * @return  \Asinius\URL
      */
     public function __construct ($url, $handler = '\Asinius\URL')
     {
@@ -1153,7 +1148,7 @@ class URL
         if ( is_callable([$this, "_get_$component"]) ) {
             return call_user_func([$this, "_get_$component"]);
         }
-        throw new \RuntimeException("There is no \"$component\" component in {$this->_original_url}");
+        throw new RuntimeException(sprintf('There is no "%s" component in %s'. $component, $this->_original_url));
     }
 
 
