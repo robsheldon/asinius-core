@@ -530,6 +530,10 @@ class Asinius
         switch ($alphabet) {
             case 'CROCKFORD':
                 //  See also https://www.crockford.com/base32.html
+                //  Crockford's checksum is not appended to the output; I anticipate
+                //  base32-encoded values being used as "slugs" in applications, and
+                //  the checksum would be incompatible with those.
+                //  Also I just don't wanna do it right now. :-)
                 $alphabet = '0123456789abcdefghjkmnpqrstvwxyz';
                 break;
             case 'LEXICOGRAPHIC':
