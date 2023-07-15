@@ -490,6 +490,75 @@ class Asinius
 
 
     /**
+     * Convert a value into a base32 represenatation with an optional
+     * specialty alphabet.
+     */
+    public static function base32_encode ($value, $alphabet = '') : string
+    {
+        switch ($alphabet) {
+            case 'CROCKFORD':
+                //  See also https://www.crockford.com/base32.html
+                $alphabet = '0123456789abcdefghjkmnpqrstvwxyz';
+                break;
+            case 'LEXICOGRAPHIC':
+                //  See also https://brandur.org/fragments/base32-slugs
+                $alphabet = '234567abcdefghijklmnopqrstuvwxyz';
+                break;
+            case '':
+                //  Use RFC 4648.
+                $alphabet = 'abcdefghijklmnopqrstuvwxyz234567';
+                break;
+        }
+        if ( strlen($alphabet) !== 32 ) {
+            throw new RuntimeException('base32_encode(): alphabet must be exactly 32 characters');
+        }
+        $alphabet = '=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+        $out = '';
+        $n = strlen($value);
+        $i = 0;
+        while ($i < $n) {
+            $chunk_size = $i + 5 > $n ? $n - $i : 5;
+            $out_chunk = [0, 0, 0, 0, 0, 0, 0, 0];
+            switch ($chunk_size) {
+                case 5:
+                    $ord = ord($value[$i+4]);
+                    $out_chunk[7] = 1 + ($ord & 31);
+                    $out_chunk[6] = ($ord & 224) >> 5;
+                case 4:
+                    $ord = ord($value[$i+3]);
+                    $out_chunk[6] += 1 + (($ord & 3) << 3);
+                    $out_chunk[5] = 1 + (($ord & 124) >> 2);
+                    $out_chunk[4] = ($ord & 128) >> 7;
+                case 3:
+                    $ord = ord($value[$i+2]);
+                    $out_chunk[4] += 1 + (($ord & 15) << 1);
+                    $out_chunk[3] = ($ord & 240) >> 4;
+                case 2:
+                    $ord = ord($value[$i+1]);
+                    $out_chunk[3] += 1 + (($ord & 1) << 4);
+                    $out_chunk[2] = 1 + (($ord & 62) >> 1);
+                    $out_chunk[1] = ($ord & 192) >> 6;
+                case 1:
+                    $ord = ord($value[$i]);
+                    $out_chunk[1] += 1 + (($ord & 7) << 2);
+                    $out_chunk[0] = 1 + (($ord & 248) >> 3);
+            }
+            $i += $chunk_size;
+            foreach ($out_chunk as $value) {
+                $out .= $alphabet[$value];
+            }
+        }
+        return $out;
+    }
+
+
+    public static function base32_decode ($encoded, $alphabet = '') : string
+    {
+
+    }
+
+
+    /**
      * Return true if an array's keys are sequential integers starting at 0,
      * false otherwise.
      *
