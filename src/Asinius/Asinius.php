@@ -490,11 +490,43 @@ class Asinius
 
 
     /**
-     * Convert a value into a base32 represenatation with an optional
-     * specialty alphabet.
+     * base32 encoding of an 8-bit byte stream, with an optional specialty alphabet,
+     * optimized for time and space efficiency.
+     *
+     * This function has gone through several iterations of tuning for performance, so
+     * it merits some extra explanation.
+     *
+     * The output encodes 5 bits of data per base32 character (2^5 = 32), and the input
+     * is expected to contain 8 bits per character, so the input can be subdivided into
+     * 40-bit chunks (the LCM of 8 and 5). Bitmasking and bitshifting operations can be
+     * used to carve 8 characters out of the 40-bit chunk, 5 bits at a time.
+     *
+     * There will be zero or more "full" 40-bit blocks, and then the last 40-bit block
+     * _may_ require some padding. A modulo can be used to determine which bitmasks to
+     * use for this last chunk.
+     *
+     * If we run this process back-to-front (from the end of the input to the beginning),
+     * then we only need to calculate the modulo once, and every loop after that will
+     * encode all 40 bits of the chunk. Then, just reverse the output before returning it.
+     *
+     * The last trick is to do a little bit of math to calculate the required padding.
+     * "$i % 5 * 8" gives the number of bits left to be encoded in the final 40-bit
+     * chunk; the rest is just arithmetic to figure out the number of unencoded bits to
+     * be converted into padding.
+     *
+     * @param   mixed       $value
+     * @param   ?string     $alphabet
+     *
+     * @return  string
      */
-    public static function base32_encode ($value, $alphabet = '') : string
+    public static function base32_encode ($value, string $alphabet = '') : string
     {
+        if ( is_int($value) ) {
+            return static::base32_encode(pack('H*', dechex($value)), $alphabet);
+        }
+        if ( ! is_string($value) ) {
+            throw new RuntimeException("Can't base32_encode this type of value");
+        }
         switch ($alphabet) {
             case 'CROCKFORD':
                 //  See also https://www.crockford.com/base32.html
@@ -512,49 +544,42 @@ class Asinius
         if ( strlen($alphabet) !== 32 ) {
             throw new RuntimeException('base32_encode(): alphabet must be exactly 32 characters');
         }
-        $alphabet = '=ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-        $out = '';
         $n = strlen($value);
-        $i = 0;
-        while ($i < $n) {
-            $chunk_size = $i + 5 > $n ? $n - $i : 5;
-            $out_chunk = [0, 0, 0, 0, 0, 0, 0, 0];
-            switch ($chunk_size) {
-                case 5:
-                    $ord = ord($value[$i+4]);
-                    $out_chunk[7] = 1 + ($ord & 31);
-                    $out_chunk[6] = ($ord & 224) >> 5;
+        $out = '';
+        $modulo = $n % 5;
+        for ($i = $n, $carry = 0; $i > 0; $modulo = 0) {
+            switch ($modulo) {
+                case 0:
+                    $ord   = ord($value[--$i]);
+                    $out  .= $alphabet[$ord & 31];
+                    $carry = ($ord & 224) >> 5;
                 case 4:
-                    $ord = ord($value[$i+3]);
-                    $out_chunk[6] += 1 + (($ord & 3) << 3);
-                    $out_chunk[5] = 1 + (($ord & 124) >> 2);
-                    $out_chunk[4] = ($ord & 128) >> 7;
+                    $ord   = ord($value[--$i]);
+                    $out  .= $alphabet[$carry + (($ord & 3) << 3)];
+                    $out  .= $alphabet[($ord & 124) >> 2];
+                    $carry = ($ord & 128) >> 7;
                 case 3:
-                    $ord = ord($value[$i+2]);
-                    $out_chunk[4] += 1 + (($ord & 15) << 1);
-                    $out_chunk[3] = ($ord & 240) >> 4;
+                    $ord   = ord($value[--$i]);
+                    $out  .= $alphabet[$carry + (($ord & 15) << 1)];
+                    $carry = ($ord & 240) >> 4;
                 case 2:
-                    $ord = ord($value[$i+1]);
-                    $out_chunk[3] += 1 + (($ord & 1) << 4);
-                    $out_chunk[2] = 1 + (($ord & 62) >> 1);
-                    $out_chunk[1] = ($ord & 192) >> 6;
+                    $ord   = ord($value[--$i]);
+                    $out  .= $alphabet[$carry + (($ord & 1) << 4)];
+                    $out  .= $alphabet[($ord & 62) >> 1];
+                    $carry = ($ord & 192) >> 6;
                 case 1:
-                    $ord = ord($value[$i]);
-                    $out_chunk[1] += 1 + (($ord & 7) << 2);
-                    $out_chunk[0] = 1 + (($ord & 248) >> 3);
-            }
-            $i += $chunk_size;
-            foreach ($out_chunk as $value) {
-                $out .= $alphabet[$value];
+                    $ord   = ord($value[--$i]);
+                    $out  .= $alphabet[$carry + (($ord & 7) << 2)];
+                    $out  .= $alphabet[($ord & 248) >> 3];
             }
         }
-        return $out;
+        return strrev($out) . str_repeat('=', (8 - ceil($n % 5 * 8 / 5)) % 8);
     }
 
 
     public static function base32_decode ($encoded, $alphabet = '') : string
     {
-
+        return '';
     }
 
 
