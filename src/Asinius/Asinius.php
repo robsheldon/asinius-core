@@ -699,6 +699,23 @@ class Asinius
         return false;
     }
 
+
+    /**
+     * Return the "basename" of a class.
+     *
+     * @param string|Object $class
+     *
+     * @return string
+     */
+    public static function class_basename (string|Object $class): string
+    {
+        if ( is_object($class) ) {
+            $class = get_class($class);
+        }
+        $basename = strrchr($class, '\\');
+        return $basename === false ? $class : substr($basename, 1);
+    }
+
 }
 
 
