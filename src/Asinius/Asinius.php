@@ -397,6 +397,27 @@ class Asinius
 
 
     /**
+     * Slightly more flexible variation of str_matchlen(): finds the longest identical
+     * character sequence at the beginning of all the parameters and returns it.
+     *
+     * Example:
+     *     str_get_prefix('/var/log/temp', '/var/www/site', '/var/run/pid') returns '/var/'.
+     *
+     * @param   string[]    ...$strings
+     *
+     * @return  string
+     */
+    public static function str_get_prefix (string ...$strings): string
+    {
+        $prefix = array_shift($strings) ?? '';
+        while ( $prefix !== '' && ($next = array_shift($strings)) !== null ) {
+            $prefix = substr($prefix, 0, static::str_matchlen($prefix, $next));
+        }
+        return $prefix;
+    }
+
+
+    /**
      * Similar to addslashes(), but idempotent: it only escapes characters in a
      * string if the string hasn't already been fully escaped.
      *
