@@ -409,9 +409,14 @@ class Asinius
      */
     public static function str_get_prefix (string ...$strings): string
     {
+        if ( count($strings) < 1 ) {
+            return '';
+        }
+        $n = min(array_map('strlen', $strings));
         $prefix = array_shift($strings) ?? '';
         while ( $prefix !== '' && ($next = array_shift($strings)) !== null ) {
-            $prefix = substr($prefix, 0, static::str_matchlen($prefix, $next));
+            for ( $i = 0; $i < $n && $prefix[$i] === $next[$i]; $i++ ) ;
+            $prefix = substr($prefix, 0, $i);
         }
         return $prefix;
     }
