@@ -858,7 +858,7 @@ class Resource implements Datastream
                     if ( strlen($this->_read_buffer) < ($remaining * 1.5) ) {
                         $last_read_count = $this->_readf();
                     }
-                    $chunk = Multibyte::strcut($this->_read_buffer, 0, $remaining * 1.5, $this->_charset);
+                    $chunk = Multibyte::strcut($this->_read_buffer, 0, (int) ($remaining * 1.5), $this->_charset);
                     $this->_read_buffer = substr($this->_read_buffer, strlen($chunk));
                     $this->_read_cache = array_merge($this->_read_cache, Multibyte::str_split($chunk, 1, $this->_charset));
                     break;
