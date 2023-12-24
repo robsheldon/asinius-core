@@ -457,6 +457,7 @@ class Resource implements Datastream
         //  Start the Datastream in raw mode.
         $this->_flags |= static::STREAMOPT_RAWMODE;
         $this->_read_buffer = '';
+        $this->_read_cache  = '';
         $this->_data_sources = new StrictArray();
         if ( is_string($resource) ) {
             $this->_name = $resource;
