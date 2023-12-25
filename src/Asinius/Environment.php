@@ -9,7 +9,7 @@
 *                                                                              *
 *   LICENSE                                                                    *
 *                                                                              *
-*   Copyright (c) 2020 Rob Sheldon <rob@rescue.dev>                            *
+*   Copyright (c) 2023 Rob Sheldon <rob@robsheldon.com>                        *
 *                                                                              *
 *   Permission is hereby granted, free of charge, to any person obtaining a    *
 *   copy of this software and associated documentation files (the "Software"), *
@@ -35,17 +35,13 @@
 
 namespace Asinius;
 
-
-/*******************************************************************************
-*                                                                              *
-*   \Asinius\Environment                                                       *
-*                                                                              *
-*******************************************************************************/
+use Exception, RuntimeException;
 
 class Environment
 {
 
-    private static $_properties = [
+    //  Default properties that can be set by functions in this class.
+    private static array $_properties = [
         'os_type'               => null,
         'can_exec'              => null,
         'can_shell_exec'        => null,
@@ -56,79 +52,167 @@ class Environment
 
 
     /**
-     * Provide on-demand access to defined properties. This is structured like
-     * this (instead of standard, traditional public static functions) so that
-     * requests for specific values can be automatically memoized and all
-     * values can easily be returned for debugging purposes in all_properties().
+     * Allow applications to define and call static functions in this class.
      *
      * @param   string      $function
      * @param   array       $arguments
      *
-     * @internal
+     * @throws  RuntimeException
      * 
      * @return  mixed
      */
-    public static function __callStatic ($function, $arguments)
+    public static function __callStatic (string $function, array $arguments)
     {
-        if ( ! array_key_exists($function, self::$_properties) ) {
-            throw new \RuntimeException("Undefined environment property: $function");
-        }
         if ( ! is_null(self::$_properties[$function]) ) {
             return self::$_properties[$function];
         }
-        switch ($function) {
-            case 'os_type':
-                switch (strtolower(PHP_OS)) {
-                    case 'windows':
-                    case 'win32':
-                    case 'winnt':
-                        return self::$_properties['ostype'] = 'Windows';
-                    case 'linux':
-                        return self::$_properties['ostype'] = 'Linux';
-                    case 'darwin':
-                        return self::$_properties['ostype'] = 'MacOS';
-                    default:
-                        return self::$_properties['ostype'] = PHP_OS;
-                }
-            case 'can_exec':
-                return self::$_properties['can_exec'] = ! self::safe_mode() && function_exists('exec') && ! in_array('exec', self::disabled_functions()) && trim(exec('echo EXEC')) == 'EXEC';
-            case 'can_shell_exec':
-                return self::$_properties['can_shell_exec'] = ! self::safe_mode() && function_exists('shell_exec') && ! in_array('shell_exec', self::disabled_functions()) && trim(shell_exec('echo SHELL_EXEC')) == 'SHELL_EXEC';
-            case 'safe_mode':
-                return self::$_properties['safe_mode'] = in_array(strtolower(ini_get('safe_mode')), ['on', '1'], true);
-            case 'disabled_functions':
-                return self::$_properties['disabled_functions'] = array_filter(array_map('trim', explode(',', ini_get('disable_functions'))), function($element){
-                    return ! is_string($element) || strlen($element) > 0;
-                });
-            case 'context':
-                //  $cli and $web should -only- contain answers which are certain
-                //  to be correct in all environments. "php-cgi" for example is
-                //  reported to occur in both web requests and cron job invocations
-                //  in some environments, so further detection efforts are required.
-                $cli = ['cli'];
-                $web = ['apache', 'cgi', 'cgi-fcgi', 'cli-server', 'fpm-fcgi'];
-                $context = 'unknown';
-                if ( in_array(PHP_SAPI, $cli) ) {
-                    //  It would be nice to do an additional check here, like:
-                    //      (posix_getuid() > 999 || posix_getuid() === 0)
-                    //  ...but this is not universal enough across different
-                    //  operating systems.
-                    $context = 'cli';
-                }
-                else if ( in_array(PHP_SAPI, $web) || isset($_SERVER['HTTP_USER_AGENT']) || isset($_SERVER['REQUEST_METHOD']) ) {
-                    $context = 'web';
-                }
-                else if ( (empty($_SERVER['REMOTE_ADDR']) && count($_SERVER['argv']) > 0) || isset($_ENV['SHELL']) ) {
-                    $context = 'cli';
-                }
-                if ( $context == 'cli' ) {
-                    //  Determine if this is an interactive cli or no.
-                    if ( defined('STDOUT') && posix_isatty(STDOUT) ) {
-                        $context = 'cli-interactive';
-                    }
-                }
-                return self::$_properties['context'] = $context;
+        throw new RuntimeException("Undefined environment property: $function");
+    }
+
+
+    /**
+     * Return the operating system type, one of 'Windows', 'Linux', or 'MacOS'.
+     *
+     * @return string
+     */
+    public static function os_type (): string
+    {
+        if ( ! is_null(self::$_properties[__FUNCTION__]) ) {
+            return self::$_properties[__FUNCTION__];
         }
+        switch (strtolower(PHP_OS)) {
+            case 'windows':
+            case 'win32':
+            case 'winnt':
+                return self::$_properties[__FUNCTION__] = 'Windows';
+            case 'linux':
+                return self::$_properties[__FUNCTION__] = 'Linux';
+            case 'darwin':
+                return self::$_properties[__FUNCTION__] = 'MacOS';
+            default:
+                return self::$_properties[__FUNCTION__] = PHP_OS;
+        }
+    }
+
+
+    /**
+     * Return true if the 'exec()' function is available and working as expected,
+     * false otherwise.
+     *
+     * @return bool
+     */
+    public static function can_exec (): bool
+    {
+        if ( ! is_null(self::$_properties[__FUNCTION__]) ) {
+            return self::$_properties[__FUNCTION__];
+        }
+        try {
+            self::$_properties[__FUNCTION__] = ! self::safe_mode() && function_exists('exec') && ! in_array('exec', self::disabled_functions()) && trim(exec('echo EXEC')) === 'EXEC';
+        }
+        catch (Exception $e) {
+            self::$_properties[__FUNCTION__] = false;
+        }
+        return self::$_properties[__FUNCTION__];
+    }
+
+
+    /**
+     * Return true if the'shell_exec()' function is available and working as expected,
+     * false otherwise.
+     *
+     * @return bool
+     */
+    public static function can_shell_exec (): bool
+    {
+        if ( ! is_null(self::$_properties[__FUNCTION__]) ) {
+            return self::$_properties[__FUNCTION__];
+        }
+        try {
+            self::$_properties[__FUNCTION__] = ! self::safe_mode() && function_exists('shell_exec') && ! in_array('shell_exec', self::disabled_functions()) && trim(shell_exec('echo SHELL_EXEC')) == 'SHELL_EXEC';
+        }
+        catch (Exception $e) {
+            self::$_properties[__FUNCTION__] = false;
+        }
+        return self::$_properties[__FUNCTION__];
+    }
+
+
+    /**
+     * Return true if 'safe_mode' is set in php.ini, false otherwise.
+     *
+     * @return bool
+     */
+    public static function safe_mode (): bool
+    {
+        if ( ! is_null(self::$_properties[__FUNCTION__]) ) {
+            return self::$_properties[__FUNCTION__];
+        }
+        return self::$_properties[__FUNCTION__] = in_array(strtolower(ini_get('safe_mode')), ['on', '1'], true);
+    }
+
+
+    /**
+     * Return a list of functions that are disabled in php.ini.
+     *
+     * @return array
+     */
+    public static function disabled_functions (): array
+    {
+        if ( ! is_null(self::$_properties[__FUNCTION__]) ) {
+            return self::$_properties[__FUNCTION__];
+        }
+        return self::$_properties[__FUNCTION__] = array_filter(array_map('trim', explode(',', ini_get('disable_functions'))), function($element){
+            return ! is_string($element) || strlen($element) > 0;
+        });
+    }
+
+
+    /**
+     * Return the current execution context, one of 'cli', 'web', or 'cli-interactive'.
+     *
+     * PHP doesn't have an official, foolproof way to determine whether an
+     * application is running in a CLI or web context, so this function uses
+     * some hueristics to make an educated guess.
+     *
+     * @return string
+     */
+    public static function context (): string
+    {
+        if ( ! is_null(self::$_properties[__FUNCTION__]) ) {
+            return self::$_properties[__FUNCTION__];
+        }
+        $contexts = ['cli' => 0, 'web' => 0, 'cli-interactive' => 0];
+        //  PHP_SAPI tests should -only- contain values which are certain
+        //  to be correct in all environments. "php-cgi" for example is
+        //  reported to occur in both web requests and cron job invocations
+        //  in some environments, so further detection efforts are required.
+        if ( PHP_SAPI === 'cli' ) {
+            //  It would be nice to do an additional check here, like:
+            //      (posix_getuid() > 999 || posix_getuid() === 0)
+            //  ...but this is not universal enough across different
+            //  operating systems.
+            $contexts['cli']++;
+        }
+        //  $_SERVER values may be set in some CLI environments, for unit
+        //  testing for example, so we really need a PHP_SAPI match too.
+        if ( in_array(PHP_SAPI, ['apache', 'cgi', 'cgi-fcgi', 'cli-server', 'fpm-fcgi']) && (isset($_SERVER['HTTP_USER_AGENT']) || isset($_SERVER['REQUEST_METHOD'])) ) {
+            $contexts['web'] += 2;
+        }
+        if ( (empty($_SERVER['REMOTE_ADDR']) && count($_SERVER['argv']) > 0) || isset($_ENV['SHELL']) ) {
+            $contexts['cli']++;
+        }
+        //  The STDIN test is fairly reliable. 'php://input' is used in
+        //  web execution contexts instead, and it should be uncommon for
+        //  web applications to mock it.
+        if ( defined('STDIN') ) {
+            $contexts['cli']++;
+        }
+        //  Determine if this is an interactive cli or no.
+        if ( $contexts['cli'] > 0 && defined('STDOUT') && function_exists('posix_isatty') && posix_isatty(STDOUT) ) {
+            $contexts['cli-interactive'] = $contexts['cli'] + 1;
+        }
+        arsort($contexts, SORT_NUMERIC);
+        return self::$_properties[__FUNCTION__] = key($contexts);
     }
 
 
@@ -143,9 +227,9 @@ class Environment
      *
      * @return  boolean
      */
-    public static function add_property ($property, $value)
+    public static function add_property (string $property, $value): bool
     {
-        if ( is_string($property) && ! array_key_exists($property, self::$_properties) && ! is_null($value) ) {
+        if ( ! array_key_exists($property, self::$_properties) && ! is_null($value) ) {
             self::$_properties[$property] = $value;
             return true;
         }
@@ -160,20 +244,20 @@ class Environment
      *
      * @return  boolean
      */
-    public static function defined ($property)
+    public static function defined (string $property): bool
     {
         return array_key_exists($property, self::$_properties);
     }
 
 
     /**
-     * Returns a simple array of all of the currently available environmental
-     * properties with each of their values filled in. This function may get
-     * expensive in the future and should be used only for debugging purposes.
+     * Returns a simple array of all currently available environmental properties
+     * with each of their values filled in. This function may get expensive in
+     * the future and should be used only for debugging purposes.
      *
      * @return  array
      */
-    public static function all_properties ()
+    public static function all_properties (): array
     {
         $values = [];
         foreach (self::$_properties as $key => $value) {
