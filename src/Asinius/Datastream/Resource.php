@@ -52,12 +52,12 @@
 
 namespace Asinius\Datastream;
 
-use RuntimeException,
-    Asinius\Datastream as Datastream,
-    Asinius\DatastreamProperties as DatastreamProperties,
-    Asinius\Functions as Functions,
-    Asinius\Multibyte as Multibyte,
-    Asinius\StrictArray as StrictArray;
+use RuntimeException;
+use Asinius\Datastream;
+use Asinius\Datastream\Properties as DatastreamProperties;
+use Asinius\Functions;
+use Asinius\Multibyte;
+use Asinius\StrictArray;
 
 
 /*******************************************************************************
@@ -495,6 +495,8 @@ class Resource implements Datastream
                     //  This may be a path to a file. There are a few rules that
                     //  must be followed to prevent unsafe access to an application's
                     //  own directory:
+                    $this->_type = Datastream::STREAM_FILE;
+                    $this->_state |= (Datastream::STREAM_READABLE | Datastream::STREAM_WRITABLE);
                     $this->_path = @realpath($resource);
                     if ( $this->_path === false ) {
                         //  1. If the file doesn't already exist, then the parent
@@ -508,6 +510,8 @@ class Resource implements Datastream
                         }
                         //  Parent directory exists and is writable, continue.
                         $this->_path = implode(DIRECTORY_SEPARATOR, [$parent_dir, basename($resource)]);
+                        //  This file is not readable, however.
+                        $this->_state &= ~Datastream::STREAM_READABLE;
                     }
                     if ( strpos($this->_path, getcwd()) === 0 && $resource !== $this->_path ) {
                         //  2. Paths can not indirectly reference a location in
@@ -521,8 +525,6 @@ class Resource implements Datastream
                         //  the resource handle instead.
                         throw new RuntimeException("The application tried to access a file in its own directory. Wait, that's illegal", EACCESS);
                     }
-                    $this->_type = Datastream::STREAM_FILE;
-                    $this->_state |= (Datastream::STREAM_READABLE | Datastream::STREAM_WRITABLE);
             }
         }
         else if ( @is_resource($resource) ) {
@@ -704,7 +706,7 @@ class Resource implements Datastream
      *
      * @return  boolean
      */
-    public function empty () : bool
+    public function empty (): bool
     {
         if ( $this->_state & Datastream::STREAM_UNOPENED ) {
             $this->open();
@@ -713,6 +715,46 @@ class Resource implements Datastream
             throw new RuntimeException('eof(): stream is not connected', ENOTCONN);
         }
         return is_null($this->peek());
+    }
+
+
+    /**
+     * Return the name/label/description for this Datastream.
+     *
+     * If the Datastream is a file, returns the full path to the file (as set
+     * by an earlier call to realpath() in the constructor).
+     *
+     * @return  string
+     */
+    public function name (): string
+    {
+        if ( $this->_type === Datastream::STREAM_FILE ) {
+            return $this->_path;
+        }
+        return $this->_name;
+    }
+
+
+    /**
+     * Return the stream type for this Datastream, as defined under "Stream types"
+     * in the Datastream interface.
+     *
+     * @return  int
+     */
+    public function type (): int
+    {
+        return $this->_type;
+    }
+
+
+    /**
+     * Returns true if this Datastream is readable, false otherwise.
+     *
+     * @return  boolean
+     */
+    public function is_readable (): bool
+    {
+        return ($this->_state & Datastream::STREAM_READABLE) !== 0;
     }
 
 
@@ -910,6 +952,13 @@ class Resource implements Datastream
      */
     public function write ($data)
     {
+        //  A shortcut for a common use case.
+        if ( $this->_name === 'STDOUT' && is_a($data, 'Asinius\Datastream\Resource') && $data->type() === Datastream::STREAM_FILE && $data->is_readable() ) {
+            readfile($data->name());
+            //  IMPORTANT: Callers should call flush() immediately after this.
+            //  It can't be called here because flush() may interfere with
+            //  output buffering.
+        }
         if ( $this->_state & Datastream::STREAM_UNOPENED ) {
             $this->open();
         }
