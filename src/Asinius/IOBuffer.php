@@ -42,6 +42,8 @@
 
 namespace Asinius;
 
+use RuntimeException;
+
 class IOBuffer
 {
 
@@ -124,7 +126,14 @@ class IOBuffer
                 //  If a caller write()s the contents of a file read() in
                 //  line mode, the caller can't know if the file was
                 //  terminated in a newline or not.
-                $lines = preg_split("/(\r?\n)/", $this->_pending, 0, PREG_SPLIT_DELIM_CAPTURE);
+                //  PREG_SPLIT_DELIM_CAPTURE captures the delimiters, alright,
+                //  but it puts them in their own array elements. Sigh.
+                $lines = [];
+                $mangled_lines = preg_split("/(\r?\n)/", $this->_pending, 0, PREG_SPLIT_DELIM_CAPTURE);
+                $n = count($mangled_lines);
+                for ( $i = 0; $i < $n; $i += 2 ) {
+                    $lines[] = $mangled_lines[$i] . ($mangled_lines[$i + 1] ?? '');
+                }
                 if ( count($lines) > 1 ) {
                     //  Save the last (possibly incomplete) line in the pending buffer.
                     $this->_pending = array_pop($lines);
@@ -224,7 +233,15 @@ class IOBuffer
     {
         $out = $this->peek($count, $read_callback);
         if ( $out !== null ) {
-            $this->_cache_position += is_string($out) ? strlen($out) : count($out);
+            if ( is_string($this->_cache) ) {
+                $this->_cache_position += strlen($out);
+            }
+            else if ( is_string($out) ) {
+                $this->_cache_position += strlen($out) > 1 ? 1: 0;
+            }
+            else {
+                $this->_cache_position += count($out);
+            }
         }
         return $out;
     }
@@ -257,5 +274,124 @@ class IOBuffer
         $this->_pending = '';
         $this->_cache_position = 0;
         return $out;
+    }
+
+
+    /**
+     * Change the read mode for this buffer.
+     *
+     * Applications can change the read mode while reading from an IOBuffer and
+     * it will _mostly_ handle it gracefully.
+     *
+     * Valid modes are:
+     *     IOBuffer::RAWMODE     Treat the buffer as a string of bytes
+     *     IOBuffer::CHARMODE    Treat the buffer as an array of multibyte characters
+     *     IOBuffer::LINEMODE    Treat the buffer as an array of lines
+     *
+     * Returns the current mode.
+     *
+     * @param int|null $mode
+     *
+     * @return int
+     */
+    public function mode (int $mode = null): int
+    {
+        $new_mode_flag = null;
+        switch ($mode) {
+            case null:
+                break;
+            case static::RAWMODE:
+                //  Data is buffered as a string of bytes, and read(1) returns
+                //  the next byte.
+                if ( ($this->_flags & static::MODEMASK) === static::RAWMODE ) {
+                    break;
+                }
+                $new_mode_flag = static::RAWMODE;
+                if ( is_array($this->_cache) ) {
+                    $delim = '';
+                    if ( ($this->_flags & static::MODEMASK) === static::LINEMODE ) {
+                        $delim = "\n";
+                    }
+                    $this->_cache_position = strlen(implode($delim, array_slice($this->_cache, 0, $this->_cache_position)));
+                    $this->_cache = implode($delim, $this->_cache);
+                }
+                break;
+            case static::CHARMODE:
+                //  Data is buffered as an array of characters. Multibyte charset
+                //  support is implied. read(1) returns the next character.
+                if ( ($this->_flags & static::MODEMASK) === static::CHARMODE ) {
+                    break;
+                }
+                $new_mode_flag = static::CHARMODE;
+                if ( ($this->_flags & static::MODEMASK) === static::LINEMODE ) {
+                    //  Convert to raw, then will be converted to chars.
+                    $this->_cache_position = strlen(implode("\n", array_slice($this->_cache, 0, $this->_cache_position)));
+                    $this->_cache = implode("\n", $this->_cache);
+                    if ( $this->_cache_position > 0 ) {
+                        //  A newline has just been inserted at the
+                        //  current read position, so the index needs
+                        //  to be advanced one.
+                        $this->_cache_position++;
+                    }
+                    $this->_flags |= static::RAWMODE;
+                }
+                if ( ($this->_flags & static::MODEMASK) === static::RAWMODE ) {
+                    $this->_cache_position = Multibyte::strlen(Multibyte::strcut($this->_cache, 0, $this->_cache_position, $this->_charset), $this->_charset);
+                    $this->_cache = Multibyte::str_split($this->_cache, 1, $this->_charset);
+                }
+                break;
+            case static::LINEMODE:
+                //  Data is buffered as an array of lines separated
+                //  by "\n". read(1) returns the next line.
+                //  WARNING WARNING WARNING WARNING
+                //  This mode switch WILL add line breaks to your data
+                //  if your application has read() into the middle of
+                //  a line.
+                if ( ($this->_flags & static::MODEMASK) === static::LINEMODE ) {
+                    break;
+                }
+                $new_mode_flag = static::LINEMODE;
+                if ( ($this->_flags & static::MODEMASK) === static::RAWMODE ) {
+                    if ( strlen($this->_cache) === 0 ) {
+                        $this->_cache = [];
+                        break;
+                    }
+                    if ( $this->_cache_position === 0 || $this->_cache_position >= strlen($this->_cache) ) {
+                        $this->_cache = preg_split("/\r?\n/", $this->_cache);
+                        if ( $this->_cache_position > 0 ) {
+                            $this->_cache_position = count($this->_cache);
+                        }
+                    }
+                    else {
+                        $read_lines = preg_split("/\r?\n/", substr($this->_cache, 0, $this->_cache_position));
+                        $this->_cache = array_merge($read_lines, preg_split("/\r?\n/", substr($this->_cache, $this->_cache_position)));
+                        $this->_cache_position = count($read_lines);
+                    }
+                }
+                else if ( ($this->_flags & static::MODEMASK) === static::CHARMODE ) {
+                    if ( count($this->_cache) === 0 ) {
+                        break;
+                    }
+                    if ( $this->_cache_position === 0 || $this->_cache_position >= count($this->_cache) ) {
+                        $this->_cache = preg_split("/\r?\n/", implode('', $this->_cache));
+                        if ( $this->_cache_position > 0 ) {
+                            $this->_cache_position = count($this->_cache);
+                        }
+                    }
+                    else {
+                        $read_lines = preg_split("/\r?\n/", implode('', array_slice($this->_cache, 0, $this->_cache_position)));
+                        $this->_cache = array_merge($read_lines, preg_split("/\r?\n/", implode('', array_slice($this->_cache, $this->_cache_position))));
+                        $this->_cache_position = count($read_lines);
+                    }
+                }
+                break;
+            default:
+                throw new RuntimeException(sprintf("\"0b%032b\" is not a valid %s mode", $mode, __CLASS__));
+        }
+        if ( $new_mode_flag !== null ) {
+            $this->_flags &= ~static::MODEMASK;
+            $this->_flags |= $new_mode_flag;
+        }
+        return $this->_flags & static::MODEMASK;
     }
 }

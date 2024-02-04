@@ -91,4 +91,20 @@ final class IOBufferTest extends TestCase
         $this->assertNull($iobuffer->read(1));
     }
 
+
+    public function test_read_lines (): void
+    {
+        //  Generate 24 lines of some number of characters each.
+        $lines_in = [];
+        for ( $i = 0; $i < 24; $i++ ) {
+            $lines_in[] = $this->generate_random_data(random_int(50, 150)) . "\n";
+        }
+        $iobuffer = new IOBuffer();
+        $iobuffer->mode(IOBuffer::LINEMODE);
+        $iobuffer->append(implode('', $lines_in));
+        for ( $i = 0; $i < 24; $i++ ) {
+            $this->assertSame($lines_in[$i], $iobuffer->read());
+        }
+        $this->assertNull($iobuffer->read(1));
+    }
 }
