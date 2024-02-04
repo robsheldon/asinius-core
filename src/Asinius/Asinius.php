@@ -481,7 +481,7 @@ class Asinius
             case (is_null($thing)):
                 return 'null';
             case (is_resource($thing)):
-                return 'resource(' . get_resource_type($thing) . ')';
+                return 'resource(' . @get_resource_type($thing) . ')';
             case (is_object($thing)):
                 return 'object(' . get_class($thing) . ')';
             case (is_array($thing)):
