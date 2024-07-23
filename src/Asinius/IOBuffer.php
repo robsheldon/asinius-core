@@ -42,53 +42,87 @@
 
 namespace Asinius;
 
+use Closure;
 use RuntimeException;
 
 class IOBuffer
 {
 
-    //  Read modes.
-    const   RAWMODE       = 0b000000010000000000000000;
-    const   CHARMODE      = 0b000000100000000000000000;
-    const   LINEMODE      = 0b000001000000000000000000;
-    const   MODEMASK      = self::RAWMODE | self::CHARMODE | self::LINEMODE;
-
-    //  Other options.
-    const   TRACKING      = 0b000010000000000000000000;
-
-
-    protected         string $_pending         = '';
-    protected         mixed  $_cache           = '';
-    protected         int    $_cache_position  = 0;
-    protected        ?int    $_max_buffer_size = null;
-    public    static  int    $MAX_BUFFER_SIZE  = PHP_INT_MAX;
-    protected         int    $_flags           = self::RAWMODE;
-    protected        ?string $_charset         = null;
+    protected        ?Closure $_callback        = null;
+    protected         mixed   $_storage         = null;
+    protected        ?int     $_lock            = null;
+    protected         int     $_storage_index   = 0;
+    protected         int     $_storage_bytes   = 0;
+    //  Line and position tracking. Positions are 1-indexed.
+    protected         int     $_line            = 0;
+    protected         int     $_char            = 0;
 
 
     /**
-     * Set the maximum buffer size for this instance. This overrides the static
-     * IOBuffer::$MAX_BUFFER_SIZE value (whether it's larger or smaller).
+     * Acquire a lock on the storage resource. Resource locking allows multiple
+     * callers to share the same IOBuffer. Exclusive locks are used for both read
+     * and write operations because read operations may juggle the resource file
+     * pointer a bit.
      *
-     * @param ?int $size
+     * flock() doesn't work on "php://temp" resources, as it turns out, so a crude
+     * internal lock is used here instead.
+     *
+     * @throws RuntimeException
      *
      * @return int
      */
-    public function max_buffer_size (int $size = null): int
+    protected function _lock (): int
     {
-        if ( $size !== null ) {
-            $this->_max_buffer_size = $size;
+        $new_lock = rand(1, 0xFFFF);
+        for ( $i = 0; $i < 100; $i++ ) {
+            //  This is not quite atomic, but should be a very narrow window for
+            //  race conditions. There is no solution in PHP that doesn't use the
+            //  filesystem or add additional dependencies (sem_* functions).
+            if ( ($this->_lock = $this->_lock ?? $new_lock) === $new_lock ) {
+                return $new_lock;
+            }
+            usleep(1);
         }
-        return $this->_max_buffer_size ?? static::$MAX_BUFFER_SIZE;
+        throw new RuntimeException('Could not acquire a lock on internal storage in 100μs');
+    }
+
+
+    /**
+     * Release a previously-acquired internal lock.
+     *
+     * @param  int  $lock_value
+     *
+     * @throws RuntimeException
+     *
+     * @return void
+     */
+    protected function _unlock (int $lock_value): void
+    {
+        if ( $this->_lock === $lock_value ) {
+            $this->_lock = null;
+        }
     }
 
 
     /**
      * Return a new IOBuffer.
+     *
+     * A Closure may be provided as a callback function. This function will be
+     * called during any peek() or read() operation that would run past the end
+     * of the current internal cache. The callback function is expected to call
+     * append() on this object to add more data to the internal cache.
+     *
+     * $callback will be called as $callback(IOBUffer $this, int $needed_count)
+     *
+     * A Closure is required because a Callback type is not permitted as an
+     * object property. See also https://wiki.php.net/rfc/typed_properties_v2#supported_types.
+     * Use Closure::fromCallable() to convert a callable into a valid Closure.
      */
-    public function __construct ()
+    public function __construct (?Closure $callback = null)
     {
-        //  No setup required at this time.
+        $this->_callback = $callback;
+        $this->_storage = fopen('php://temp', 'a+b');
+        @fseek($this->_storage, 0);
     }
 
 
@@ -98,119 +132,117 @@ class IOBuffer
      * Code that interfaces with an i/o device would use this to append data to
      * their IOBuffer after reading it from the device.
      *
-     * Data is immediately converted (as much as possible) into the type expected
-     * by the IOBuffer's read mode.
-     *
      * @param string $data
      *
      * @return void
      */
     public function append (string $data): void
     {
-        //  Process the raw data according to the current read mode option and
-        //  append the result to the cache.
-        if ( $this->_flags & static::RAWMODE ) {
-            $this->_cache .= $data;
-            $cache_size = strlen($this->_cache);
+        $lock = $this->_lock();
+        $written = fwrite($this->_storage, $data);
+        if ( $written !== strlen($data) ) {
+            throw new RuntimeException('Incomplete write to internal storage');
         }
-        else {
-            $this->_pending .= $data;
-            if ( $this->_flags & static::CHARMODE ) {
-                $chunk = Multibyte::strcut($this->_pending, 0, null, $this->_charset);
-                $this->_pending = substr($this->_pending, strlen($chunk));
-                $this->_cache   = array_merge($this->_cache, Multibyte::str_split($chunk, 1, $this->_charset));
+        $this->_storage_bytes += $written;
+        $this->_unlock($lock);
+    }
+
+
+    /**
+     * Retrieve $count bytes from the IOBuffer without moving the internal read
+     * index. i.e., two consecutive peek() operations will return the same data.
+     *
+     * If insufficient data is available in the IOBuffer to fulfill the request,
+     * then it will try to call the callback function provided by the caller in
+     * IOBuffer's constructor. If that is not available or does not append()
+     * data to the IOBuffer, then peek() will return whatever data is available.
+     *
+     * peek() can also accept a negative value, which will cause it to look
+     * backwards through the IOBuffer and return ($count * -1) bytes back from
+     * the current position, up to the beginning of the IOBuffer.
+     *
+     * @param int $count
+     *
+     * @return string
+     */
+    public function peek (int $count = 1): string
+    {
+        if ( $count < 0 ) {
+            //  Try to look backwards in the buffer.
+            $lock = $this->_lock();
+            @fseek($this->_storage, max(0, $this->_storage_index + $count));
+            $byte_count = min($count * -1, $this->_storage_index);
+            if ( $byte_count > 0 ) {
+                $out = @fread($this->_storage, min($count * -1, $this->_storage_index));
             }
             else {
-                //  The end-of-line delimiter MUST be returned, otherwise
-                //  there's no way to make write() and read() idempotetent.
-                //  If a caller write()s the contents of a file read() in
-                //  line mode, the caller can't know if the file was
-                //  terminated in a newline or not.
-                //  PREG_SPLIT_DELIM_CAPTURE captures the delimiters, alright,
-                //  but it puts them in their own array elements. Sigh.
-                $lines = [];
-                $mangled_lines = preg_split("/(\r?\n)/", $this->_pending, 0, PREG_SPLIT_DELIM_CAPTURE);
-                $n = count($mangled_lines);
-                for ( $i = 0; $i < $n; $i += 2 ) {
-                    $lines[] = $mangled_lines[$i] . ($mangled_lines[$i + 1] ?? '');
-                }
-                if ( count($lines) > 1 ) {
-                    //  Save the last (possibly incomplete) line in the pending buffer.
-                    $this->_pending = array_pop($lines);
-                    $this->_cache   = array_merge($this->_cache, $lines);
-                }
+                $out = '';
             }
-            $cache_size = count($this->_cache);
+            @fseek($this->_storage, $this->_storage_index);
+            $this->_unlock($lock);
+            return $out;
         }
-        //  Trim the read cache if needed after appending to it.
-        $trim = min($this->_cache_position, max(0, $cache_size - ($this->_max_buffer_size ?? static::$MAX_BUFFER_SIZE)));
-        if ( $trim > 0 ) {
-            $this->_cache = is_array($this->_cache) ? array_slice($this->_cache, $trim) : substr($this->_cache, $trim);
-            $this->_cache_position -= $trim;
+        if ( $count === 0 ) {
+            return '';
+        }
+        $last_size = -1;
+        while ( true ) {
+            //  Estimate how much data is still needed.
+            $remaining = $count - $this->_storage_bytes + $this->_storage_index;
+            //  1. Return "" if:
+            //      a. No data is available and no data was returned by the callback.
+            //  2. Return some or all of the buffer if:
+            //      a. The requested data is already in the buffer;
+            //      b. Some data was returned by the callback but no more is available;
+            //      c. Data has been returned by the calback and it satisfies the request.
+            if ( $last_size ===  $this->_storage_bytes || $remaining <= 0 ) {
+                if ( $remaining === $count ) {
+                    //  No more data available (at this time?).
+                    //  Signal that peek() failed to retrieve any data.
+                    return '';
+                }
+                //  Return whatever is in the buffer.
+                $lock = $this->_lock();
+                @fseek($this->_storage, $this->_storage_index);
+                $out = @fread($this->_storage, min($count, $this->_storage_bytes - $this->_storage_index));
+                @fseek($this->_storage, $this->_storage_index);
+                $this->_unlock($lock);
+                return $out;
+            }
+            //  Ask the caller to try append()ing a $remaining amount of data,
+            //  probably through a read() on their i/o device.
+            //  $remaining might not be in bytes! But, this will get called
+            //  repeatedly until the peek() request is fulfilled, so we're okay.
+            $this->_callback?->__invoke($this, $remaining);
+            $last_size = $this->_storage_bytes;
         }
     }
 
 
     /**
-     * Retrieve $count bytes, chars, or lines from the IOBuffer without moving
-     * the internal read index. i.e., two consecutive peek() operations will
-     * return the same data.
+     * Return the contents of the IOBuffer from its current read position up to
+     * and including the next "\n", but do not change the read position.
      *
-     * Callers can (should) provide a callback function $read_callback. This
-     * function will be called if peek() needs to return more data than is
-     * currently stored in the IOBuffer, and the callback function should try
-     * to append() more data to this IOBuffer.
-     *
-     * $read_callback will be called as $read_callback(IOBUffer $this, int $needed_count)
-     * NOTE: $needed_count is _not_ guaranteed to be a number of bytes! If the
-     * IOBuffer's read mode is CHARMODE or LINEMODE, $needed_count will be the
-     * number of chars or lines needed, respectively. But, this is okay! The
-     * callback will be called repeatedly until the peek() request is fulfilled
-     * or the callback is not able to append() any more data to the IOBuffer.
-     *
-     * @param int $count
-     * @param callable|null $read_callback
-     *
-     * @return array|string|null
+     * @return string
      */
-    public function peek (int $count = 1, ?Callable $read_callback = null): array|string|null
+    public function peek_line (): string
     {
-        if ( $count < 0 ) {
-            return null;
-        }
-        $last_cache_size = -1;
-        $cache_is_array = is_array($this->_cache);
+        $out = '';
+        $last_size = -1;
+        $saved_index = $this->_storage_index;
+        $lock = $this->_lock();
+        @fseek($this->_storage, $this->_storage_index);
         while ( true ) {
-            //  Estimate how much data is still needed.
-            $cache_size = $cache_is_array ? count($this->_cache) : strlen($this->_cache);
-            $remaining = $count - $cache_size + $this->_cache_position;
-            //  1. Return null if:
-            //      a. No data is available and no data was returned by $read_callback.
-            //  2. Return some or all of the read cache if:
-            //      a. The requested data is already in the cache;
-            //      b. Some data was returned by $read_callback but no more is available;
-            //      c. Data has been returned by $read_calback and it satisfies the request.
-            if ( $last_cache_size ===  $cache_size || $remaining <= 0 ) {
-                if ( $remaining === $count ) {
-                    //  No more data available (at this time?).
-                    //  Signal that peek() failed to retrieve any data.
-                    return null;
-                }
-                //  Return whatever is in the cache.
-                if ( $cache_is_array ) {
-                    $out = array_slice($this->_cache, $this->_cache_position, min($count, $cache_size - $this->_cache_position));
-                    return ( $count === 1 && count($out) > 0 ) ? $out[0] : $out;
-                }
-                return substr($this->_cache, $this->_cache_position, min($count, $cache_size - $this->_cache_position));
+            $chunk = @fgets($this->_storage);
+            $out .= $chunk ?: '';
+            if ( $last_size === $this->_storage_bytes || substr($out, -1) === "\n" ) {
+                $this->_storage_index = $saved_index;
+                @fseek($this->_storage, $this->_storage_index);
+                $this->_unlock($lock);
+                return $out;
             }
-            if ( $read_callback !== null ) {
-                //  Ask the caller to try append()ing a $remaining amount of data,
-                //  probably through a read() on their i/o device.
-                //  $remaining might not be in bytes! But, this will get called
-                //  repeatedly until the peek() request is fulfilled, so we're okay.
-                $read_callback($this, $remaining);
-            }
-            $last_cache_size = $cache_size;
+            $this->_callback?->__invoke($this, 1024);
+            $last_size = $this->_storage_bytes;
         }
     }
 
@@ -219,179 +251,111 @@ class IOBuffer
      * Return up to $count bytes, chars, or lines from the IOBuffer and update
      * the internal read index.
      *
-     * Callers can (should) provide a callback function $read_callback. This
-     * function will be called if read() needs to return more data than is
-     * currently stored in the IOBuffer, and the callback function should try
-     * to append() more data to this IOBuffer.
-     *
      * @param int           $count
-     * @param callable|null $read_callback
      *
-     * @return array|string|null
+     * @return string
      */
-    public function read (int $count = 1, ?Callable $read_callback = null): array|string|null
+    public function read (int $count = 1): string
     {
-        $out = $this->peek($count, $read_callback);
-        if ( $out !== null ) {
-            if ( is_string($this->_cache) ) {
-                $this->_cache_position += strlen($out);
-            }
-            else if ( is_string($out) ) {
-                $this->_cache_position += strlen($out) > 1 ? 1: 0;
-            }
-            else {
-                $this->_cache_position += count($out);
-            }
-        }
-        return $out;
-    }
-
-
-    /**
-     * Return any unread data, _and_ any data left in the internal "pending"
-     * buffer, in whatever mode the IOBuffer is currently using, and then clear
-     * all buffers and reset counters. This is typically used to get the last
-     * incomplete bit of data (if any) in char or line modes before closing the
-     * device attached to the IOBuffer.
-     *
-     * @return string|array
-     */
-    public function flush (): string|array
-    {
-        if ( is_string($this->_cache) ) {
-            $out = $this->_cache . $this->_pending;
-            $this->_cache = '';
+        $out = $this->peek($count);
+        $lines = explode("\n", $out);
+        if ( $count < 0 ) {
+            $this->_storage_index -= strlen($out);
+            $this->_line -= $n - 1;
+            //  This is broken. TODO: need to read all the way back to the beginning
+            //  of the line to determine how many characters in the position should be.
+            $this->_char = 0;
         }
         else {
-            if ( $this->_pending != '' ) {
-                $out = array_merge($this->_cache, [$this->_pending]);
+            //  Update line and character position tracking.
+            if ( $this->_line === 0 ) {
+                $this->_line = 1;
+            }
+            if ( $this->peek(-1) === "\n" ) {
+                $this->_line++;
+                $this->_char = 0;
+            }
+            if ( ($n = count($lines)) > 1 ) {
+                $this->_line += $n - 1;
+                $this->_char = strlen(array_pop($lines));
             }
             else {
-                $out = $this->_cache;
+                $this->_char += strlen(array_pop($lines));
             }
-            $this->_cache = [];
         }
-        $this->_pending = '';
-        $this->_cache_position = 0;
+        $this->_storage_index += strlen($out);
         return $out;
     }
 
 
     /**
-     * Change the read mode for this buffer.
+     * Return the contents of the IOBuffer from its current read position up to
+     * and including the next "\n", and update the buffer's read position.
      *
-     * Applications can change the read mode while reading from an IOBuffer and
-     * it will _mostly_ handle it gracefully.
+     * You can call read_line() repeatedly to get each line in the buffer.
      *
-     * Valid modes are:
-     *     IOBuffer::RAWMODE     Treat the buffer as a string of bytes
-     *     IOBuffer::CHARMODE    Treat the buffer as an array of multibyte characters
-     *     IOBuffer::LINEMODE    Treat the buffer as an array of lines
-     *
-     * Returns the current mode.
-     *
-     * @param int|null $mode
-     *
-     * @return int
+     * @return string
      */
-    public function mode (int $mode = null): int
+    public function read_line (): string
     {
-        $new_mode_flag = null;
-        switch ($mode) {
-            case null:
-                break;
-            case static::RAWMODE:
-                //  Data is buffered as a string of bytes, and read(1) returns
-                //  the next byte.
-                if ( ($this->_flags & static::MODEMASK) === static::RAWMODE ) {
-                    break;
-                }
-                $new_mode_flag = static::RAWMODE;
-                if ( is_array($this->_cache) ) {
-                    $delim = '';
-                    if ( ($this->_flags & static::MODEMASK) === static::LINEMODE ) {
-                        $delim = "\n";
-                    }
-                    $this->_cache_position = strlen(implode($delim, array_slice($this->_cache, 0, $this->_cache_position)));
-                    $this->_cache = implode($delim, $this->_cache);
-                }
-                break;
-            case static::CHARMODE:
-                //  Data is buffered as an array of characters. Multibyte charset
-                //  support is implied. read(1) returns the next character.
-                if ( ($this->_flags & static::MODEMASK) === static::CHARMODE ) {
-                    break;
-                }
-                $new_mode_flag = static::CHARMODE;
-                if ( ($this->_flags & static::MODEMASK) === static::LINEMODE ) {
-                    //  Convert to raw, then will be converted to chars.
-                    $this->_cache_position = strlen(implode("\n", array_slice($this->_cache, 0, $this->_cache_position)));
-                    $this->_cache = implode("\n", $this->_cache);
-                    if ( $this->_cache_position > 0 ) {
-                        //  A newline has just been inserted at the
-                        //  current read position, so the index needs
-                        //  to be advanced one.
-                        $this->_cache_position++;
-                    }
-                    $this->_flags |= static::RAWMODE;
-                }
-                if ( ($this->_flags & static::MODEMASK) === static::RAWMODE ) {
-                    $this->_cache_position = Multibyte::strlen(Multibyte::strcut($this->_cache, 0, $this->_cache_position, $this->_charset), $this->_charset);
-                    $this->_cache = Multibyte::str_split($this->_cache, 1, $this->_charset);
-                }
-                break;
-            case static::LINEMODE:
-                //  Data is buffered as an array of lines separated
-                //  by "\n". read(1) returns the next line.
-                //  WARNING WARNING WARNING WARNING
-                //  This mode switch WILL add line breaks to your data
-                //  if your application has read() into the middle of
-                //  a line.
-                if ( ($this->_flags & static::MODEMASK) === static::LINEMODE ) {
-                    break;
-                }
-                $new_mode_flag = static::LINEMODE;
-                if ( ($this->_flags & static::MODEMASK) === static::RAWMODE ) {
-                    if ( strlen($this->_cache) === 0 ) {
-                        $this->_cache = [];
-                        break;
-                    }
-                    if ( $this->_cache_position === 0 || $this->_cache_position >= strlen($this->_cache) ) {
-                        $this->_cache = preg_split("/\r?\n/", $this->_cache);
-                        if ( $this->_cache_position > 0 ) {
-                            $this->_cache_position = count($this->_cache);
-                        }
-                    }
-                    else {
-                        $read_lines = preg_split("/\r?\n/", substr($this->_cache, 0, $this->_cache_position));
-                        $this->_cache = array_merge($read_lines, preg_split("/\r?\n/", substr($this->_cache, $this->_cache_position)));
-                        $this->_cache_position = count($read_lines);
-                    }
-                }
-                else if ( ($this->_flags & static::MODEMASK) === static::CHARMODE ) {
-                    if ( count($this->_cache) === 0 ) {
-                        break;
-                    }
-                    if ( $this->_cache_position === 0 || $this->_cache_position >= count($this->_cache) ) {
-                        $this->_cache = preg_split("/\r?\n/", implode('', $this->_cache));
-                        if ( $this->_cache_position > 0 ) {
-                            $this->_cache_position = count($this->_cache);
-                        }
-                    }
-                    else {
-                        $read_lines = preg_split("/\r?\n/", implode('', array_slice($this->_cache, 0, $this->_cache_position)));
-                        $this->_cache = array_merge($read_lines, preg_split("/\r?\n/", implode('', array_slice($this->_cache, $this->_cache_position))));
-                        $this->_cache_position = count($read_lines);
-                    }
-                }
-                break;
-            default:
-                throw new RuntimeException(sprintf("\"0b%032b\" is not a valid %s mode", $mode, __CLASS__));
+        $out = $this->peek_line();
+        //  Update line and character position tracking as above in read().
+        if ( $this->_line === 0 ) {
+            $this->_line = 1;
         }
-        if ( $new_mode_flag !== null ) {
-            $this->_flags &= ~static::MODEMASK;
-            $this->_flags |= $new_mode_flag;
+        if ( $this->peek(-1) === "\n" ) {
+            $this->_line++;
+            $this->_char = 0;
         }
-        return $this->_flags & static::MODEMASK;
+        $this->_char += strlen($out);
+        $this->_storage_index += strlen($out);
+        return $out;
     }
+
+
+    /**
+     * Return any unread data in the IOBuffer, and then clear the IOBuffer and
+     * reset counters. This is typically used to get the last incomplete bit of
+     * data (if any) from the IOBuffer before closing the device attached to it.
+     *
+     * @return string
+     */
+    public function flush (): string
+    {
+        $out = '';
+        while ( ($chunk = $this->read(8192)) !== '' ) {
+            $out .= $chunk;
+        }
+        $lock = $this->_lock();
+        if ( ! @ftruncate($this->_storage, 0) ) {
+            throw new RuntimeException('Could not truncate internal storage');
+        }
+        if ( ! @fseek($this->_storage, 0) ) {
+            throw new RuntimeException('Could not reset the file pointer for internal storage');
+        }
+        $this->_storage_bytes = 0;
+        $this->_storage_index = 0;
+        $this->_line = 0;
+        $this->_char = 0;
+        $this->_unlock($lock);
+        return $out;
+    }
+
+
+    /**
+     * Return the current line number and position of the IOBuffer if line
+     * tracking has been enabled.
+     *
+     * This returns the line and offset of the last read data. If no data has
+     * been read yet, it returns [0, 0]; after the first character, [1, 1];
+     * if reading in line mode and the first line is read, [1, <length of line>].
+     *
+     * @return  array
+     */
+    public function get_position (): array
+    {
+        return ['line' => $this->_line, 'position' => $this->_char];
+    }
+
+
 }
