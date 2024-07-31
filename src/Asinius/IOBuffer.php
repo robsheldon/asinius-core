@@ -51,11 +51,9 @@ class IOBuffer
     protected        ?Closure $_callback        = null;
     protected         mixed   $_storage         = null;
     protected        ?int     $_lock            = null;
-    protected         int     $_storage_index   = 0;
+    protected         int     $_read_index      = 0;
     protected         int     $_storage_bytes   = 0;
-    //  Line and position tracking. Positions are 1-indexed.
-    protected         int     $_line            = 0;
-    protected         int     $_char            = 0;
+    protected         array   $_newlines        = [];
 
 
     /**
@@ -143,6 +141,11 @@ class IOBuffer
         if ( $written !== strlen($data) ) {
             throw new RuntimeException('Incomplete write to internal storage');
         }
+        //  Update internal tracking of newlines, used by get_position().
+        preg_match_all("/\n/", $data, $matches, PREG_OFFSET_CAPTURE);
+        foreach ($matches[0] as $match) {
+            $this->_newlines[] = $this->_storage_bytes + $match[1];
+        }
         $this->_storage_bytes += $written;
         $this->_unlock($lock);
     }
@@ -170,15 +173,15 @@ class IOBuffer
         if ( $count < 0 ) {
             //  Try to look backwards in the buffer.
             $lock = $this->_lock();
-            @fseek($this->_storage, max(0, $this->_storage_index + $count));
-            $byte_count = min($count * -1, $this->_storage_index);
+            @fseek($this->_storage, max(0, $this->_read_index + $count));
+            $byte_count = min($count * -1, $this->_read_index);
             if ( $byte_count > 0 ) {
-                $out = @fread($this->_storage, min($count * -1, $this->_storage_index));
+                $out = @fread($this->_storage, min($count * -1, $this->_read_index));
             }
             else {
                 $out = '';
             }
-            @fseek($this->_storage, $this->_storage_index);
+            @fseek($this->_storage, $this->_read_index);
             $this->_unlock($lock);
             return $out;
         }
@@ -188,7 +191,7 @@ class IOBuffer
         $last_size = -1;
         while ( true ) {
             //  Estimate how much data is still needed.
-            $remaining = $count - $this->_storage_bytes + $this->_storage_index;
+            $remaining = $count - $this->_storage_bytes + $this->_read_index;
             //  1. Return "" if:
             //      a. No data is available and no data was returned by the callback.
             //  2. Return some or all of the buffer if:
@@ -203,9 +206,9 @@ class IOBuffer
                 }
                 //  Return whatever is in the buffer.
                 $lock = $this->_lock();
-                @fseek($this->_storage, $this->_storage_index);
-                $out = @fread($this->_storage, min($count, $this->_storage_bytes - $this->_storage_index));
-                @fseek($this->_storage, $this->_storage_index);
+                @fseek($this->_storage, $this->_read_index);
+                $out = @fread($this->_storage, min($count, $this->_storage_bytes - $this->_read_index));
+                @fseek($this->_storage, $this->_read_index);
                 $this->_unlock($lock);
                 return $out;
             }
@@ -229,15 +232,15 @@ class IOBuffer
     {
         $out = '';
         $last_size = -1;
-        $saved_index = $this->_storage_index;
+        $saved_index = $this->_read_index;
         $lock = $this->_lock();
-        @fseek($this->_storage, $this->_storage_index);
+        @fseek($this->_storage, $this->_read_index);
         while ( true ) {
             $chunk = @fgets($this->_storage);
             $out .= $chunk ?: '';
             if ( $last_size === $this->_storage_bytes || substr($out, -1) === "\n" ) {
-                $this->_storage_index = $saved_index;
-                @fseek($this->_storage, $this->_storage_index);
+                $this->_read_index = $saved_index;
+                @fseek($this->_storage, $this->_read_index);
                 $this->_unlock($lock);
                 return $out;
             }
@@ -258,32 +261,12 @@ class IOBuffer
     public function read (int $count = 1): string
     {
         $out = $this->peek($count);
-        $lines = explode("\n", $out);
         if ( $count < 0 ) {
-            $this->_storage_index -= strlen($out);
-            $this->_line -= $n - 1;
-            //  This is broken. TODO: need to read all the way back to the beginning
-            //  of the line to determine how many characters in the position should be.
-            $this->_char = 0;
+            $this->_read_index -= strlen($out);
         }
         else {
-            //  Update line and character position tracking.
-            if ( $this->_line === 0 ) {
-                $this->_line = 1;
-            }
-            if ( $this->peek(-1) === "\n" ) {
-                $this->_line++;
-                $this->_char = 0;
-            }
-            if ( ($n = count($lines)) > 1 ) {
-                $this->_line += $n - 1;
-                $this->_char = strlen(array_pop($lines));
-            }
-            else {
-                $this->_char += strlen(array_pop($lines));
-            }
+            $this->_read_index += strlen($out);
         }
-        $this->_storage_index += strlen($out);
         return $out;
     }
 
@@ -299,16 +282,7 @@ class IOBuffer
     public function read_line (): string
     {
         $out = $this->peek_line();
-        //  Update line and character position tracking as above in read().
-        if ( $this->_line === 0 ) {
-            $this->_line = 1;
-        }
-        if ( $this->peek(-1) === "\n" ) {
-            $this->_line++;
-            $this->_char = 0;
-        }
-        $this->_char += strlen($out);
-        $this->_storage_index += strlen($out);
+        $this->_read_index += strlen($out);
         return $out;
     }
 
@@ -334,17 +308,14 @@ class IOBuffer
             throw new RuntimeException('Could not reset the file pointer for internal storage');
         }
         $this->_storage_bytes = 0;
-        $this->_storage_index = 0;
-        $this->_line = 0;
-        $this->_char = 0;
+        $this->_read_index = 0;
         $this->_unlock($lock);
         return $out;
     }
 
 
     /**
-     * Return the current line number and position of the IOBuffer if line
-     * tracking has been enabled.
+     * Return the current line number and position of the IOBuffer.
      *
      * This returns the line and offset of the last read data. If no data has
      * been read yet, it returns [0, 0]; after the first character, [1, 1];
@@ -354,7 +325,17 @@ class IOBuffer
      */
     public function get_position (): array
     {
-        return ['line' => $this->_line, 'position' => $this->_char];
+        if ( $this->_read_index === 0 ) {
+            return ['line' => 0, 'position' => 0];
+        }
+        $last_read = $this->_read_index - 1;
+        $line = 0;
+        $line_count = count($this->_newlines);
+        while ( $line < $line_count && $this->_newlines[$line] < $last_read ) {
+            $line++;
+        }
+        $position = $line === 0 ? $this->_read_index : $last_read - $this->_newlines[$line - 1];
+        return ['line' => ++$line, 'position' => $position];
     }
 
 

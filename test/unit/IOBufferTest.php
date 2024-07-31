@@ -177,5 +177,14 @@ final class IOBufferTest extends TestCase
         //  Read 85 characters more, which should go a couple of lines down.
         $this->assertSame("for his gayer hours\nshe has a voice of gladness, and a smile\nand eloquence of beauty,", $iobuffer->read(85));
         $this->assertSame(['line' => 5, 'position' => 24], $iobuffer->get_position());
+        //  Read backwards 3 characters.
+        $this->assertSame("ty,", $iobuffer->read(-3));
+        $this->assertSame(['line' => 5, 'position' => 21], $iobuffer->get_position());
+        //  Read backwards 30 characters more.
+        $this->assertSame(" a smile\nand eloquence of beau", $iobuffer->read(-30));
+        $this->assertSame(['line' => 4, 'position' => 32], $iobuffer->get_position());
+        //  Reading forward 30 characters should return the same string again.
+        $this->assertSame(" a smile\nand eloquence of beau", $iobuffer->read(30));
+        $this->assertSame(['line' => 5, 'position' => 21], $iobuffer->get_position());
     }
 }
