@@ -48,12 +48,52 @@ use RuntimeException;
 class IOBuffer
 {
 
+    const   DISABLE_POSITION_TRACKING   = 0b000000000000000000000001;
+    const   READ_ONLY                   = 0b000000000000000000000010;
+    const   WRITE_ONLY                  = 0b000000000000000000000100;
+
+
     protected        ?Closure $_callback        = null;
     protected         mixed   $_storage         = null;
+    protected         int     $_flags           = 0;
     protected        ?int     $_lock            = null;
     protected         int     $_read_index      = 0;
     protected         int     $_storage_bytes   = 0;
-    protected         array   $_newlines        = [];
+    protected        ?array   $_newlines        = null;
+
+
+    /**
+     * Update the internal list of offsets of newlines in the buffer data.
+     *
+     * This is used for line-and-char position tracking in get_position().
+     *
+     * @internal
+     *
+     * @param  int    $base
+     * @param  string $data
+     * @param  ?int   $threshold
+     *
+     */
+    protected function _update_newlines (int $base, string $data, ?int $threshold = null): void {
+        if ( $this->_flags & static::DISABLE_POSITION_TRACKING ) {
+            return;
+        }
+        if ( $this->_newlines === null ) {
+            $this->_newlines = [];
+        }
+        $last = Asinius::last($this->_newlines) ?? -1;
+        if ( $threshold !== null && $last > $threshold ) {
+            return;
+        }
+        preg_match_all("/\n/", $data, $matches, PREG_OFFSET_CAPTURE);
+        $values = array_map(fn($value) => $value + $base, array_column($matches[0], 1));
+        while ( count($values) && $values[0] <= $last ) {
+            //  There are some funky edge cases with seeking behavior on disk
+            //  file buffers that can cause duplicate newline values.
+            array_shift($values);
+        }
+        $this->_newlines = array_merge($this->_newlines, $values);
+    }
 
 
     /**
@@ -116,10 +156,21 @@ class IOBuffer
      * object property. See also https://wiki.php.net/rfc/typed_properties_v2#supported_types.
      * Use Closure::fromCallable() to convert a callable into a valid Closure.
      */
-    public function __construct (?Closure $callback = null)
+    public function __construct (?Closure $callback = null, $file = null, $flags = 0)
     {
-        $this->_callback = $callback;
-        $this->_storage = fopen('php://temp', 'a+b');
+        $this->_flags = $flags;
+        if ( $file !== null && @is_resource($file) && Datastream::get_stream_type($file) === Datastream::STREAM_FILE ) {
+            $this->_storage = $file;
+            $this->_storage_bytes = @fstat($file)['size'] ?? 0;
+        }
+        else {
+            //  Obeying $flags doesn't make any sense here, although they will
+            //  be respected by read() and write() calls. An application might
+            //  open a restricted IOBuffer with temporary storage if it intends
+            //  to copy it to or from another stream resource.
+            $this->_storage = fopen('php://temp', 'a+b');
+            $this->_callback = $callback;
+        }
         @fseek($this->_storage, 0);
     }
 
@@ -136,16 +187,16 @@ class IOBuffer
      */
     public function append (string $data): void
     {
+        if ( $this->_flags & static::READ_ONLY ) {
+            return;
+        }
         $lock = $this->_lock();
         $written = fwrite($this->_storage, $data);
         if ( $written !== strlen($data) ) {
+            $this->_unlock($lock);
             throw new RuntimeException('Incomplete write to internal storage');
         }
-        //  Update internal tracking of newlines, used by get_position().
-        preg_match_all("/\n/", $data, $matches, PREG_OFFSET_CAPTURE);
-        foreach ($matches[0] as $match) {
-            $this->_newlines[] = $this->_storage_bytes + $match[1];
-        }
+        $this->_update_newlines($this->_storage_bytes, $data);
         $this->_storage_bytes += $written;
         $this->_unlock($lock);
     }
@@ -170,6 +221,9 @@ class IOBuffer
      */
     public function peek (int $count = 1): string
     {
+        if ( $this->_flags & static::WRITE_ONLY ) {
+            return '';
+        }
         if ( $count < 0 ) {
             //  Try to look backwards in the buffer.
             $lock = $this->_lock();
@@ -230,6 +284,9 @@ class IOBuffer
      */
     public function peek_line (): string
     {
+        if ( $this->_flags & static::WRITE_ONLY ) {
+            return '';
+        }
         $out = '';
         $last_size = -1;
         $saved_index = $this->_read_index;
@@ -260,12 +317,20 @@ class IOBuffer
      */
     public function read (int $count = 1): string
     {
+        if ( $this->_flags & static::WRITE_ONLY ) {
+            return '';
+        }
         $out = $this->peek($count);
         if ( $count < 0 ) {
             $this->_read_index -= strlen($out);
         }
         else {
-            $this->_read_index += strlen($out);
+            $n = strlen($out);
+            //  Under some circumstances (like, if the IOBuffer was created
+            //  with a file on disk), newline info may not be collected during
+            //  append(). So, it needs to be done here.
+            $this->_update_newlines($this->_read_index, $out, $this->_read_index + $n);
+            $this->_read_index += $n;
         }
         return $out;
     }
@@ -281,8 +346,13 @@ class IOBuffer
      */
     public function read_line (): string
     {
+        if ( $this->_flags & static::WRITE_ONLY ) {
+            return '';
+        }
         $out = $this->peek_line();
-        $this->_read_index += strlen($out);
+        $n = strlen($out);
+        $this->_update_newlines($this->_read_index, $out, $this->_read_index + $n);
+        $this->_read_index += $n;
         return $out;
     }
 
@@ -297,6 +367,11 @@ class IOBuffer
      */
     public function rewind (int $bytes = 1): void
     {
+        if ( $this->_flags & static::WRITE_ONLY ) {
+            //  Calling rewind() on a WRITE_ONLY IOBuffer is a no-op because
+            //  buffers are meant to be append-only.
+            return;
+        }
         $new = max(0, $this->_read_index - abs($bytes));
         $lock = $this->_lock();
         if ( @fseek($this->_storage, $new) === 0 ) {
@@ -316,14 +391,18 @@ class IOBuffer
     public function flush (): string
     {
         $out = '';
-        while ( ($chunk = $this->read(8192)) !== '' ) {
-            $out .= $chunk;
+        if ( ! ($this->_flags & static::WRITE_ONLY) ) {
+            while ( ($chunk = $this->read(8192)) !== '' ) {
+                $out .= $chunk;
+            }
         }
         $lock = $this->_lock();
         if ( ! @ftruncate($this->_storage, 0) ) {
+            $this->_unlock($lock);
             throw new RuntimeException('Could not truncate internal storage');
         }
         if ( ! @fseek($this->_storage, 0) ) {
+            $this->_unlock($lock);
             throw new RuntimeException('Could not reset the file pointer for internal storage');
         }
         $this->_storage_bytes = 0;
@@ -344,7 +423,7 @@ class IOBuffer
      */
     public function get_position (): array
     {
-        if ( $this->_read_index === 0 ) {
+        if ( $this->_read_index === 0 || $this->_newlines === null ) {
             return ['line' => 0, 'position' => 0];
         }
         $last_read = $this->_read_index - 1;

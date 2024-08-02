@@ -155,6 +155,21 @@ final class IOBufferTest extends TestCase
 
 
     /**
+     * Ensure that an IOBuffer can be connected to a file already on disk.
+     *
+     * @return void
+     */
+    public function test_attach_to_disk_file (): void
+    {
+        $iobuffer = new IOBuffer(null, fopen(implode(DIRECTORY_SEPARATOR, [__DIR__, '..', 'data', 'thanatopsis.txt']), 'r'), IOBuffer::READ_ONLY);
+        $this->assertSame('T', $iobuffer->peek());
+        $this->assertSame("To him, who in the love of nature holds\n", $iobuffer->read_line());
+        $iobuffer->rewind(40);
+        $this->assertSame("To him, who in the love of nature holds\n", $iobuffer->read(40));
+    }
+
+
+    /**
      * Test the line-and-character position tracking built in to IOBuffer.
      *
      * This also tests all of the peek(), peek_line(), read(), and read_line()
@@ -164,46 +179,67 @@ final class IOBufferTest extends TestCase
      */
     public function test_position_tracking (): void
     {
-        $iobuffer = new IOBuffer();
-        $iobuffer->append(file_get_contents(implode(DIRECTORY_SEPARATOR, [__DIR__, '..', 'data', 'thanatopsis.txt'])));
-        //  Initial position before any reads should be 0, 0.
-        $this->assertSame(['line' => 0, 'position' => 0], $iobuffer->get_position());
-        //  Read the first character and check position information.
-        $this->assertSame('T', $iobuffer->read());
-        $this->assertSame(['line' => 1, 'position' => 1], $iobuffer->get_position());
-        //  Peek at the next character and verify that the position hasn't changed.
-        $this->assertSame('o', $iobuffer->peek());
-        $this->assertSame(['line' => 1, 'position' => 1], $iobuffer->get_position());
-        $this->assertSame('o', $iobuffer->peek());
-        //  Read the next 10 characters and verify that the position was correctly updated.
-        $this->assertSame('o him, who', $iobuffer->read(10));
-        $this->assertSame(['line' => 1, 'position' => 11], $iobuffer->get_position());
-        //  Peek at the rest of the line.
-        $this->assertSame(" in the love of nature holds\n", $iobuffer->peek_line());
-        $this->assertSame(['line' => 1, 'position' => 11], $iobuffer->get_position());
-        //  Read the rest of the line. There are 40 characters in this line including the "\n".
-        $this->assertSame(" in the love of nature holds\n", $iobuffer->read_line());
-        $this->assertSame(['line' => 1, 'position' => 40], $iobuffer->get_position());
-        //  Peek at the next character (first character of next line).
-        $this->assertSame('c', $iobuffer->peek(1));
-        $this->assertSame(['line' => 1, 'position' => 40], $iobuffer->get_position());
-        //  Read the next line.
-        $this->assertSame("communion with her visible forms, she speaks\n", $iobuffer->read_line());
-        $this->assertSame(['line' => 2, 'position' => 45], $iobuffer->get_position());
-        //  Read 20 characters of the third line.
-        $this->assertSame("a various language; ", $iobuffer->read(20));
-        $this->assertSame(['line' => 3, 'position' => 20], $iobuffer->get_position());
-        //  Read 85 characters more, which should go a couple of lines down.
-        $this->assertSame("for his gayer hours\nshe has a voice of gladness, and a smile\nand eloquence of beauty,", $iobuffer->read(85));
-        $this->assertSame(['line' => 5, 'position' => 24], $iobuffer->get_position());
-        //  Read backwards 3 characters.
-        $this->assertSame("ty,", $iobuffer->read(-3));
-        $this->assertSame(['line' => 5, 'position' => 21], $iobuffer->get_position());
-        //  Read backwards 30 characters more.
-        $this->assertSame(" a smile\nand eloquence of beau", $iobuffer->read(-30));
-        $this->assertSame(['line' => 4, 'position' => 32], $iobuffer->get_position());
-        //  Reading forward 30 characters should return the same string again.
-        $this->assertSame(" a smile\nand eloquence of beau", $iobuffer->read(30));
-        $this->assertSame(['line' => 5, 'position' => 21], $iobuffer->get_position());
+        $buffers = [
+            //  Position tracking behavior should be identical whether using an
+            //  IOBuffer with php://temp or with a file on disk.
+            new IOBuffer(),
+            new IOBuffer(null, fopen(implode(DIRECTORY_SEPARATOR, [__DIR__, '..', 'data', 'thanatopsis.txt']), 'r'), IOBuffer::READ_ONLY),
+        ];
+        $buffers[0]->append(file_get_contents(implode(DIRECTORY_SEPARATOR, [__DIR__, '..', 'data', 'thanatopsis.txt'])));
+        foreach ($buffers as $iobuffer) {
+            //  Initial position before any reads should be 0, 0.
+            $this->assertSame(['line' => 0, 'position' => 0], $iobuffer->get_position());
+            //  Read the first character and check position information.
+            $this->assertSame('T', $iobuffer->read());
+            $this->assertSame(['line' => 1, 'position' => 1], $iobuffer->get_position());
+            //  Peek at the next character and verify that the position hasn't changed.
+            $this->assertSame('o', $iobuffer->peek());
+            $this->assertSame(['line' => 1, 'position' => 1], $iobuffer->get_position());
+            $this->assertSame('o', $iobuffer->peek());
+            //  Read the next 10 characters and verify that the position was correctly updated.
+            $this->assertSame('o him, who', $iobuffer->read(10));
+            $this->assertSame(['line' => 1, 'position' => 11], $iobuffer->get_position());
+            //  Peek at the rest of the line.
+            $this->assertSame(" in the love of nature holds\n", $iobuffer->peek_line());
+            $this->assertSame(['line' => 1, 'position' => 11], $iobuffer->get_position());
+            //  Read the rest of the line. There are 40 characters in this line including the "\n".
+            $this->assertSame(" in the love of nature holds\n", $iobuffer->read_line());
+            $this->assertSame(['line' => 1, 'position' => 40], $iobuffer->get_position());
+            //  Peek at the next character (first character of next line).
+            $this->assertSame('c', $iobuffer->peek(1));
+            $this->assertSame(['line' => 1, 'position' => 40], $iobuffer->get_position());
+            //  Read the next line.
+            $this->assertSame("communion with her visible forms, she speaks\n", $iobuffer->read_line());
+            $this->assertSame(['line' => 2, 'position' => 45], $iobuffer->get_position());
+            //  Read 20 characters of the third line.
+            $this->assertSame("a various language; ", $iobuffer->read(20));
+            $this->assertSame(['line' => 3, 'position' => 20], $iobuffer->get_position());
+            //  Read 85 characters more, which should go a couple of lines down.
+            $this->assertSame("for his gayer hours\nshe has a voice of gladness, and a smile\nand eloquence of beauty,", $iobuffer->read(85));
+            $this->assertSame(['line' => 5, 'position' => 24], $iobuffer->get_position());
+            //  Read backwards 3 characters.
+            $this->assertSame("ty,", $iobuffer->read(-3));
+            $this->assertSame(['line' => 5, 'position' => 21], $iobuffer->get_position());
+            //  Read backwards 30 characters more.
+            $this->assertSame(" a smile\nand eloquence of beau", $iobuffer->read(-30));
+            $this->assertSame(['line' => 4, 'position' => 32], $iobuffer->get_position());
+            //  Reading forward 30 characters should return the same string again.
+            $this->assertSame(" a smile\nand eloquence of beau", $iobuffer->read(30));
+            $this->assertSame(['line' => 5, 'position' => 21], $iobuffer->get_position());
+        }
     }
+
+
+    public function test_position_tracking_disabled (): void
+    {
+        $iobuffer = new IOBuffer(null, null, IOBuffer::DISABLE_POSITION_TRACKING);
+        $iobuffer->append(file_get_contents(implode(DIRECTORY_SEPARATOR, [__DIR__, '..', 'data', 'thanatopsis.txt'])));
+        $iobuffer->read(40);
+        $this->assertSame(['line' => 0, 'position' => 0], $iobuffer->get_position());
+        $iobuffer->read(-10);
+        $this->assertSame(['line' => 0, 'position' => 0], $iobuffer->get_position());
+        $iobuffer->read_line();
+        $this->assertSame(['line' => 0, 'position' => 0], $iobuffer->get_position());
+    }
+
 }

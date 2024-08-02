@@ -24,10 +24,7 @@
 * Documentation
 * Multibyte support (already in progress)
 * Add a `IOBuffer::ROTATE_AT_SIZE` static value and matching method. If either the static class value or the object's corresponding property is set, (greater than 0), then the `IOBuffer` will "wraparound" subsequent writes, erasing some of the read history. If the write index reaches the read index, then the read index is moved forward with subsequent writes (warning! data loss!). This can be an alternative to setting `/maxmemory` or dealing with `sys_get_temp_dir()`.
-* Optionally allow an `IOBuffer` to be constructed with an existing resource (so it can be used as a wrapper for existing files)
-    * ...and optionally allow flags `READ_ONLY` and `WRITE_ONLY`.
 * Add `copy_from_resource`  and `copy_to_resource` methods
-* add a `DISABLE_POSITION_TRACKING` flag to constructor
 * add a `get_read_index()` function (like position tracking, but just returns the current read index)
 * May need to switch to line length tracking anyway for compatibility with Multibyte IOBuffers:
 ```php
