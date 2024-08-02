@@ -136,6 +136,25 @@ final class IOBufferTest extends TestCase
 
 
     /**
+     * Simple test of the rewind() function.
+     *
+     * @return void
+     */
+    public function test_rewind (): void
+    {
+        $iobuffer = new IOBuffer();
+        $iobuffer->append(file_get_contents(implode(DIRECTORY_SEPARATOR, [__DIR__, '..', 'data', 'thanatopsis.txt'])));
+        $this->assertSame('To him, who in the love of nat', $iobuffer->read(30));
+        $iobuffer->rewind(20);
+        $this->assertSame('o in the love of nat', $iobuffer->read(20));
+        $iobuffer->rewind(30);
+        $this->assertSame('To him, who in the love of nat', $iobuffer->read(30));
+        $iobuffer->rewind(-10);
+        $this->assertSame("ove of nature holds\n", $iobuffer->read(20));
+    }
+
+
+    /**
      * Test the line-and-character position tracking built in to IOBuffer.
      *
      * This also tests all of the peek(), peek_line(), read(), and read_line()

@@ -288,6 +288,25 @@ class IOBuffer
 
 
     /**
+     * "Rewind" the internal read index $bytes (or as far as it will go) without
+     * returning any data.
+     *
+     * @param int $bytes
+     *
+     * @return void
+     */
+    public function rewind (int $bytes = 1): void
+    {
+        $new = max(0, $this->_read_index - abs($bytes));
+        $lock = $this->_lock();
+        if ( @fseek($this->_storage, $new) === 0 ) {
+            $this->_read_index = $new;
+        }
+        $this->_unlock($lock);
+    }
+
+
+    /**
      * Return any unread data in the IOBuffer, and then clear the IOBuffer and
      * reset counters. This is typically used to get the last incomplete bit of
      * data (if any) from the IOBuffer before closing the device attached to it.
