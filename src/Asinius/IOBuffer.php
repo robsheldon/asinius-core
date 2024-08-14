@@ -54,7 +54,7 @@ class IOBuffer
 
 
     protected        ?Closure $_callback        = null;
-    protected         mixed   $_storage         = null;
+    protected                 $_storage         = null;
     protected         int     $_flags           = 0;
     protected        ?int     $_lock            = null;
     protected         int     $_read_index      = 0;
@@ -270,7 +270,7 @@ class IOBuffer
             //  probably through a read() on their i/o device.
             //  $remaining might not be in bytes! But, this will get called
             //  repeatedly until the peek() request is fulfilled, so we're okay.
-            $this->_callback?->__invoke($this, $remaining);
+            $this->_callback !== null && $this->_callback->__invoke($this, $remaining);
             $last_size = $this->_storage_bytes;
         }
     }
@@ -301,7 +301,7 @@ class IOBuffer
                 $this->_unlock($lock);
                 return $out;
             }
-            $this->_callback?->__invoke($this, 1024);
+            $this->_callback !== null && $this->_callback->__invoke($this, 1024);
             $last_size = $this->_storage_bytes;
         }
     }
