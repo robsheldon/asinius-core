@@ -277,6 +277,22 @@ class IOBuffer
 
 
     /**
+     * Return the next $count characters from the IOBuffer. If Multibyte support
+     * is available, this method gets overridden by the Multibyte implementation
+     * of this class, which is returned by Datastream::get(), and returns the next
+     * multibyte character instead.
+     *
+     * @param  int          $count
+     *
+     * @return array
+     */
+    public function peek_char (int $count = 1): array
+    {
+        return str_split($this->peek($count));
+    }
+
+
+    /**
      * Return the contents of the IOBuffer from its current read position up to
      * and including the next "\n", but do not change the read position.
      *
@@ -333,6 +349,22 @@ class IOBuffer
             $this->_read_index += $n;
         }
         return $out;
+    }
+
+
+    /**
+     * Return the next $count characters from the IOBuffer. If Multibyte support
+     * is available, this method gets overridden by the Multibyte implementation
+     * of this class, which is returned by Datastream::get(), and returns the next
+     * multibyte character instead.
+     *
+     * @param  int          $count
+     *
+     * @return array
+     */
+    public function read_char (int $count = 1): array
+    {
+        return str_split($this->read($count));
     }
 
 
